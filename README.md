@@ -1,6 +1,6 @@
-# nahfs
+# NaHFS
 ## DESCRIPTION
-Needle and Hand File System is a distributed, hdfs compatible, spatio-temporal file system.
+Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file system presenting an HDFS compatible interface.
 
 ## TODO
 - everything
