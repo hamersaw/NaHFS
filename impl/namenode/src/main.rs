@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate log;
-use hdfs_comm::rpc::{Server, Protocol};
+use hdfs_comm::rpc::Server;
 
 mod file;
 mod protocol;
 
 use file::FileStore;
-use protocol::ClientProtocol;
+use protocol::ClientNamenodeProtocol;
 
 use std;
 use std::net::TcpListener;
@@ -22,12 +22,12 @@ fn main() {
     
     // initialize Server
     let listener = TcpListener::bind("127.0.0.1:9000").unwrap();
-    let mut server = Server::new(listener, 4);
+    let mut server = Server::new(listener, 4, 50);
     info!("initialized rpc server");
 
     // register protocols
     server.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
-        Box::new(ClientProtocol::new(file_store.clone())));
+        Box::new(ClientNamenodeProtocol::new(file_store.clone())));
  
     // start server
     if let Err(e) = server.start() {

@@ -1,3 +1,5 @@
-pub mod client;
+mod client_namenode;
+mod datanode;
 
-pub use client::ClientProtocol;
+pub use client_namenode::ClientNamenodeProtocol;
+pub use datanode::DatanodeProtocol;
