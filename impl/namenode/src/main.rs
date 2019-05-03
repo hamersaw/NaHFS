@@ -1,10 +1,9 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate serde;
+extern crate structopt;
 
 use hdfs_comm::rpc::Server;
-use shared::NahError;
+use structopt::StructOpt;
 
 mod file;
 mod protocol;
@@ -12,8 +11,6 @@ mod protocol;
 use file::FileStore;
 use protocol::ClientNamenodeProtocol;
 
-use std::fs::File;
-use std::io::Read;
 use std::net::TcpListener;
 use std::sync::{Arc, RwLock};
 
@@ -22,35 +19,14 @@ fn main() {
     env_logger::init();
 
     // parse arguments
-    let args: Vec<String>  = std::env::args().collect();
-    if args.len() != 5 {
-        println!("usage: {} <id> <ip_address> <port> <config-file>", args[0]);
-        return;
-    }
-
-    let _id = &args[1];
-    let ip_address = &args[2];
-    let port = &args[3];
-    let config_file = &args[4];
-
-    // parse toml configuration file
-    let mut contents = String::new();
-    let parse_config_result =
-        shared::parse_toml_file::<Config>(&config_file, &mut contents);
-
-    if let Err(e) = parse_config_result {
-        error!("failed to parse config file: {}", e);
-        return;
-    }
-
-    let config = parse_config_result.unwrap();
+    let config = Config::from_args();
 
     // initialize FileStore
     let file_store = Arc::new(RwLock::new(FileStore::new()));
     info!("initialized file store");
     
     // start TcpListener
-    let address = format!("{}:{}", ip_address, port);
+    let address = format!("{}:{}", config.ip_address, config.port);
     let listener_result = TcpListener::bind(&address);
     if let Err(e) = listener_result {
         error!("failed to open tcp listener on '{}': {}", address, e);
@@ -61,7 +37,7 @@ fn main() {
 
     // initialize Server
     let mut server = Server::new(listener,
-        config.rpc.thread_count, config.rpc.socket_wait_ms);
+        config.thread_count, config.socket_wait_ms);
     info!("initialized rpc server");
 
     // register protocols
@@ -78,13 +54,14 @@ fn main() {
     std::thread::park();
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, StructOpt)]
 struct Config {
-    rpc: RpcConfig,
-}
-
-#[derive(Debug, Deserialize)]
-struct RpcConfig {
+    #[structopt(short="i", long="ip_address", default_value="127.0.0.1")]
+    ip_address: String,
+    #[structopt(short="p", long="port", default_value="9000")]
+    port: u16,
+    #[structopt(short="t", long="thread_count", default_value="4")]
     thread_count: u8,
+    #[structopt(short="w", long="socket_wait_ms", default_value="50")]
     socket_wait_ms: u64,
 }

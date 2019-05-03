@@ -1,10 +1,10 @@
 #[macro_use]
 extern crate crossbeam_channel;
 #[macro_use]
-extern crate serde;
-
-#[macro_use]
 extern crate log;
+extern crate structopt;
+
+use structopt::StructOpt;
 
 mod protocol;
 use protocol::NamenodeProtocol;
@@ -14,34 +14,11 @@ fn main() {
     env_logger::init();
 
     // parse arguments
-    let args: Vec<String>  = std::env::args().collect();
-    if args.len() != 7 {
-        println!("usage: {} <id> <ip_address> <port> <namenode_ip_address> <namenode_port> <config-file>", args[0]);
-        return;
-    }
-
-    let _id = &args[1];
-    let ip_address = &args[2];
-    let port = &args[3];
-    let namenode_ip_address = &args[4];
-    let namenode_port = &args[5];
-    let config_file = &args[6];
-
-    // parse toml configuration file
-    let mut contents = String::new();
-    let parse_config_result =
-        shared::parse_toml_file::<Config>(&config_file, &mut contents);
-
-    if let Err(e) = parse_config_result {
-        error!("failed to parse config file: {}", e);
-        return;
-    }
-
-    let config = parse_config_result.unwrap();
+    let config = Config::from_args();
 
     // initialize NamenodeProtocol
     let mut namenode_protocol_service = NamenodeProtocol
-        ::new(config.rpc.block_report_ms, config.rpc.heartbeat_ms);
+        ::new(config.block_report_ms, config.heartbeat_ms);
     info!("initialized namenode_protocol service");
 
     // start NamenodeProtocol
@@ -52,13 +29,18 @@ fn main() {
     std::thread::park();
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, StructOpt)]
 struct Config {
-    rpc: RpcConfig,
-}
-
-#[derive(Debug, Deserialize)]
-struct RpcConfig {
+    #[structopt(short="i", long="ip_address", default_value="127.0.0.1")]
+    ip_address: String,
+    #[structopt(short="p", long="port", default_value="8020")]
+    port: u16,
+    #[structopt(short="a", long="namenode_ip_address", default_value="127.0.0.1")]
+    namenode_ip_address: String,
+    #[structopt(short="o", long="namenode_port", default_value="9000")]
+    namenode_port: u16,
+    #[structopt(short="b", long="block_report", default_value="1000")]
     block_report_ms: u64,
+    #[structopt(short="h", long="heartbeat", default_value="2000")]
     heartbeat_ms: u64,
 }
