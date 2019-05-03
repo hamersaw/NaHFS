@@ -13,4 +13,5 @@ log = "0.4"
 prost = "0.5"
 rand = "0.6"
 serde = { version = "1.0", features = ["derive"] }
+shared = { path = "../shared" }
 toml = "0.5"

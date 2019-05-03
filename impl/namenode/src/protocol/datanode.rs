@@ -1,8 +1,8 @@
 use hdfs_comm::rpc::Protocol;
 //use hdfs_protos::hadoop::hdfs::{DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingRequestProto, GetListingResponseProto, HdfsFileStatusProto, MkdirsRequestProto, MkdirsResponseProto};
-use prost::Message;
+//use prost::Message;
 
-use std::sync::{Arc, RwLock};
+//use std::sync::{Arc, RwLock};
 
 pub struct DatanodeProtocol {
 }

@@ -4,50 +4,40 @@ extern crate log;
 extern crate serde;
 
 use hdfs_comm::rpc::Server;
+use shared::NahError;
 
-mod error;
 mod file;
 mod protocol;
-use error::NahError;
 
 use file::FileStore;
 use protocol::ClientNamenodeProtocol;
 
-use std;
 use std::fs::File;
 use std::io::Read;
 use std::net::TcpListener;
 use std::sync::{Arc, RwLock};
-
-fn parse_config(config_file : &str) -> Result<Config, NahError> {
-    let mut file = File::open(config_file)?;
-    let mut config_content = String::new();
-    file.read_to_string(&mut config_content)?;
-
-    match toml::from_str(&config_content) {
-        Ok(config) => Ok(config),
-        Err(e) => Err(NahError::from(e)),
-    }
-}
 
 fn main() {
     // initialize logger
     env_logger::init();
 
     // parse arguments
-    let mut args: Vec<String>  = std::env::args().collect();
+    let args: Vec<String>  = std::env::args().collect();
     if args.len() != 5 {
         println!("usage: {} <id> <ip_address> <port> <config-file>", args[0]);
         return;
     }
 
-    let id = &args[1];
+    let _id = &args[1];
     let ip_address = &args[2];
     let port = &args[3];
     let config_file = &args[4];
 
     // parse toml configuration file
-    let parse_config_result = parse_config(&config_file);
+    let mut contents = String::new();
+    let parse_config_result =
+        shared::parse_toml_file::<Config>(&config_file, &mut contents);
+
     if let Err(e) = parse_config_result {
         error!("failed to parse config file: {}", e);
         return;
