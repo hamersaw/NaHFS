@@ -18,7 +18,7 @@ impl Protocol for DatanodeProtocol {
     fn process(&self, method: &str, req_buf: &[u8],
             resp_buf: &mut Vec<u8>) {
         match method {
-            "registerDatanode" => self.register_datanode(req_buf, resp_buf),
+            //"registerDatanode" => self.register_datanode(req_buf, resp_buf),
             _ => error!("unimplemented method '{}'", method),
         }
     }
