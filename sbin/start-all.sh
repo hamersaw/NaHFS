@@ -17,7 +17,8 @@ NAMENODE_CONFIG_PATH="$PROJECT_DIR/etc/namenode-config.toml"
 DATANODE="$PROJECT_DIR/impl/datanode/target/debug/datanode"
 DATANODE_CONFIG_PATH="$PROJECT_DIR/etc/datanode-config.toml"
 
-RUST_LOG="debug"
+NAMENODE_IP=""
+NAMENODE_PORT=""
 
 # start namenodes
 echo "STARTING NAMENODES:"
@@ -30,7 +31,7 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start namenode
-        $NAMENODE ${ARRAY[1]} ${ARRAY[2]} \
+        RUST_LOG=debug $NAMENODE ${ARRAY[1]} ${ARRAY[2]} \
             ${ARRAY[3]} $NAMENODE_CONFIG_PATH \
             > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 &
 
@@ -38,6 +39,9 @@ while read LINE; do
     else
         echo "TODO - remote start namenode"
     fi
+
+    NAMENODE_IP=${ARRAY[2]}
+    NAMENODE_PORT=${ARRAY[3]}
 done < <(grep namenode $HOSTS_PATH)
 
 # start datanodes
@@ -51,8 +55,8 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start datanode
-        $DATANODE ${ARRAY[1]} ${ARRAY[2]} \
-            ${ARRAY[3]} $DATANODE_CONFIG_PATH \
+        RUST_LOG=debug $DATANODE ${ARRAY[1]} ${ARRAY[2]} ${ARRAY[3]} \
+            $NAMENODE_IP $NAMENODE_PORT $DATANODE_CONFIG_PATH \
             > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 &
 
         echo $! > $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid

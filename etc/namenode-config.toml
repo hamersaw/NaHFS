@@ -1,0 +1,3 @@
+[rpc]
+thread_count = 4 
+socket_wait_ms = 50
