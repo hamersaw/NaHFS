@@ -31,6 +31,8 @@ fn main() {
 
 #[derive(Debug, StructOpt)]
 struct Config {
+    #[structopt(name="ID")]
+    id: String,
     #[structopt(short="i", long="ip_address", default_value="127.0.0.1")]
     ip_address: String,
     #[structopt(short="p", long="port", default_value="8020")]
