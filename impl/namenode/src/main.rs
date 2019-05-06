@@ -9,7 +9,7 @@ mod file;
 mod protocol;
 
 use file::FileStore;
-use protocol::ClientNamenodeProtocol;
+use protocol::{ClientNamenodeProtocol, DatanodeProtocol};
 
 use std::net::TcpListener;
 use std::sync::{Arc, RwLock};
@@ -43,6 +43,8 @@ fn main() {
     // register protocols
     server.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
         Box::new(ClientNamenodeProtocol::new(file_store.clone())));
+    server.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
+        Box::new(DatanodeProtocol::new()));
  
     // start server
     if let Err(e) = server.start() {

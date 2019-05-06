@@ -5,10 +5,12 @@ authors = ["Daniel Rammer <hamersaw@bushpath.com>"]
 edition = "2018"
 
 [dependencies]
+byteorder = "1"
 env_logger = "0.6"
 crossbeam-channel = "0.3"
 hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
 hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }
 log = "0.4"
+prost = "0.5"
 shared = { path = "../shared" }
 structopt = "0.2"
