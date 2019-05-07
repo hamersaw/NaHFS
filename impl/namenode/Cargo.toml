@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 bytes = "0.4"
+communication = {path = "../../../utilities-rs/communication" }
 env_logger = "0.6"
 hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
 hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }

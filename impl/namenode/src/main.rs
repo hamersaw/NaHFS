@@ -2,12 +2,15 @@
 extern crate log;
 extern crate structopt;
 
-use hdfs_comm::rpc::Server;
+use communication::Server;
+use hdfs_comm::rpc::Protocols;
 use structopt::StructOpt;
 
+mod datanode;
 mod file;
 mod protocol;
 
+use datanode::DatanodeStore;
 use file::FileStore;
 use protocol::{ClientNamenodeProtocol, DatanodeProtocol};
 
@@ -20,6 +23,10 @@ fn main() {
 
     // parse arguments
     let config = Config::from_args();
+
+    // initialize DatanodeStore
+    let datanode_store = Arc::new(RwLock::new(DatanodeStore::new()));
+    info!("initialized datanode store");
 
     // initialize FileStore
     let file_store = Arc::new(RwLock::new(FileStore::new()));
@@ -41,13 +48,15 @@ fn main() {
     info!("initialized rpc server");
 
     // register protocols
-    server.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
+    let mut protocols = Protocols::new();
+    protocols.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
         Box::new(ClientNamenodeProtocol::new(file_store.clone())));
-    server.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
-        Box::new(DatanodeProtocol::new()));
+    protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
+        Box::new(DatanodeProtocol::new(datanode_store.clone())));
  
     // start server
-    if let Err(e) = server.start() {
+    if let Err(e) =
+            server.start(Arc::new(RwLock::new(Box::new(protocols)))) {
         error!("failed to start rpc server: {}", e);
     }
     info!("started rpc server");
