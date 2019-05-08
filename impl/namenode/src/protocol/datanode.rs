@@ -2,19 +2,27 @@ use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeResponseProto, RegisterDatanodeRequestProto};
 use prost::Message;
 
+use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
+use crate::storage::StorageStore;
 
 use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct DatanodeProtocol {
+    block_store: Arc<RwLock<BlockStore>>,
     datanode_store: Arc<RwLock<DatanodeStore>>,
+    storage_store: Arc<RwLock<StorageStore>>,
 }
 
 impl DatanodeProtocol {
-    pub fn new(datanode_store: Arc<RwLock<DatanodeStore>>)
-            -> DatanodeProtocol {
+    pub fn new(block_store: Arc<RwLock<BlockStore>>,
+            datanode_store: Arc<RwLock<DatanodeStore>>,
+            storage_store: Arc<RwLock<StorageStore>>) -> DatanodeProtocol {
         DatanodeProtocol {
+            block_store: block_store,
             datanode_store: datanode_store,
+            storage_store: storage_store,
         }
     }
 
@@ -24,8 +32,24 @@ impl DatanodeProtocol {
         let mut response = BlockReportResponseProto::default();
 
         // process block report
-        debug!("blockReport({:?})", request);
-        // TODO - process block report
+        trace!("blockReport({:?})", request);
+        let mut block_store = self.block_store.write().unwrap();
+
+        let datanode_id = request.registration.datanode_id.datanode_uuid;
+        for sbr_proto in request.reports {
+            let storage_id = sbr_proto.storage.storage_uuid;
+            let mut index = 0;
+            while index < sbr_proto.blocks.len() {
+                let block_id = sbr_proto.blocks[index];
+                let length = sbr_proto.blocks[index+1];
+                let generation_stamp = sbr_proto.blocks[index+2];
+
+
+                block_store.update(block_id, generation_stamp,
+                    length, &datanode_id, &storage_id);
+                index += 4;
+            }
+        }
 
         response.encode_length_delimited(resp_buf).unwrap();
     }
@@ -36,8 +60,24 @@ impl DatanodeProtocol {
         let mut response = HeartbeatResponseProto::default();
 
         // process heartbeat
-        debug!("heartbeat({:?})", request);
-        // TODO - process heartbeat
+        trace!("heartbeat({:?})", request);
+        let time = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap().as_secs() * 1000;
+
+        // process datanode report
+        let mut datanode_store = self.datanode_store.write().unwrap();
+        let datanode_id = request.registration.datanode_id.datanode_uuid;
+        datanode_store.update(datanode_id, request.cache_capacity,
+            request.cache_used, time, request.xmits_in_progress,
+            request.xceiver_count);
+ 
+        // process storage reports
+        let mut storage_store = self.storage_store.write().unwrap();
+        for sr_proto in request.reports {
+            storage_store.update(sr_proto.storage_uuid,
+                sr_proto.capacity, sr_proto.dfs_used,
+                sr_proto.remaining, time);
+        }
 
         response.encode_length_delimited(resp_buf).unwrap();
     }
@@ -48,8 +88,11 @@ impl DatanodeProtocol {
         let mut response = RegisterDatanodeResponseProto::default();
 
         // register datanode
-        debug!("registerDatanode({:?})", request);
-        // TODO - register datanode
+        trace!("registerDatanode({:?})", request);
+        let mut datanode_store = self.datanode_store.write().unwrap();
+        let di_proto = request.registration.datanode_id;
+        datanode_store.register(di_proto.datanode_uuid,
+            di_proto.ip_addr, di_proto.xfer_port);
 
         response.encode_length_delimited(resp_buf).unwrap();
     }

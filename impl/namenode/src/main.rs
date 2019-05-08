@@ -6,13 +6,17 @@ use communication::Server;
 use hdfs_comm::rpc::Protocols;
 use structopt::StructOpt;
 
+mod block;
 mod datanode;
 mod file;
 mod protocol;
+mod storage;
 
+use block::BlockStore;
 use datanode::DatanodeStore;
 use file::FileStore;
 use protocol::{ClientNamenodeProtocol, DatanodeProtocol};
+use storage::StorageStore;
 
 use std::net::TcpListener;
 use std::sync::{Arc, RwLock};
@@ -24,6 +28,10 @@ fn main() {
     // parse arguments
     let config = Config::from_args();
 
+    // initialize BlockStore
+    let block_store = Arc::new(RwLock::new(BlockStore::new()));
+    info!("initialized block store");
+
     // initialize DatanodeStore
     let datanode_store = Arc::new(RwLock::new(DatanodeStore::new()));
     info!("initialized datanode store");
@@ -31,6 +39,10 @@ fn main() {
     // initialize FileStore
     let file_store = Arc::new(RwLock::new(FileStore::new()));
     info!("initialized file store");
+ 
+    // initialize StorageStore
+    let storage_store = Arc::new(RwLock::new(StorageStore::new()));
+    info!("initialized storage store");
     
     // start TcpListener
     let address = format!("{}:{}", config.ip_address, config.port);
@@ -49,10 +61,16 @@ fn main() {
 
     // register protocols
     let mut protocols = Protocols::new();
+
+    let client_namenode_protocol = ClientNamenodeProtocol::new(
+        datanode_store.clone(), file_store.clone());
     protocols.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
-        Box::new(ClientNamenodeProtocol::new(file_store.clone())));
+        Box::new(client_namenode_protocol));
+
+    let datanode_protocol = DatanodeProtocol::new(
+        block_store.clone(), datanode_store.clone(), storage_store.clone());
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
-        Box::new(DatanodeProtocol::new(datanode_store.clone())));
+        Box::new(datanode_protocol));
  
     // start server
     if let Err(e) =

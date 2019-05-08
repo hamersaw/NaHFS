@@ -1,20 +1,64 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::{DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingRequestProto, GetListingResponseProto, HdfsFileStatusProto, MkdirsRequestProto, MkdirsResponseProto};
+use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CreateRequestProto, CreateResponseProto, DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingRequestProto, GetListingResponseProto, HdfsFileStatusProto, MkdirsRequestProto, MkdirsResponseProto};
 use prost::Message;
 
+use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore};
 
 use std::sync::{Arc, RwLock};
 
 pub struct ClientNamenodeProtocol {
+    datanode_store: Arc<RwLock<DatanodeStore>>,
     file_store: Arc<RwLock<FileStore>>,
 }
 
 impl ClientNamenodeProtocol {
-    pub fn new(file_store: Arc<RwLock<FileStore>>) -> ClientNamenodeProtocol {
+    pub fn new(datanode_store: Arc<RwLock<DatanodeStore>>,
+            file_store: Arc<RwLock<FileStore>>) -> ClientNamenodeProtocol {
         ClientNamenodeProtocol {
+            datanode_store: datanode_store,
             file_store: file_store,
         }
+    }
+
+    fn add_block(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = AddBlockRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = AddBlockResponseProto::default();
+
+        // add block
+        debug!("addBlock({:?})", request);
+        let file_store = self.file_store.read().unwrap();
+        if let Some(file) = file_store.get_file(&request.src) {
+            // get random ids
+            let datanode_store = self.datanode_store.read().unwrap();
+            let ids = datanode_store.get_random_ids(file.block_replication);
+            println!("IDS: {:?}", ids);
+
+            // TODO - get everything
+            //datanode_store.get_datanode(ids[0]);
+        }
+
+        response.encode_length_delimited(resp_buf).unwrap();
+    }
+
+    fn create(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = CreateRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = CreateResponseProto::default();
+
+        // create file
+        debug!("create({:?})", request);
+        let mut file_store = self.file_store.write().unwrap();
+        file_store.create(&request.src, request.masked.perm,
+            "TODO", "TODO", request.replication, request.block_size);
+
+        // get file
+        if let Some(file) = file_store.get_file(&request.src) {
+            response.fs = Some(to_proto(file, &file_store));
+        }
+
+        response.encode_length_delimited(resp_buf).unwrap();
     }
 
     fn get_file_info(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
@@ -74,7 +118,8 @@ impl ClientNamenodeProtocol {
         // create directories
         debug!("mkdirs({:?})", request);
         let mut file_store = self.file_store.write().unwrap();
-        file_store.mkdirs(&request.src, request.create_parent);
+        file_store.mkdirs(&request.src, request.masked.perm,
+            "TODO", "TODO", request.create_parent);
 
         response.result = true;
         response.encode_length_delimited(resp_buf).unwrap();
@@ -85,6 +130,8 @@ impl Protocol for ClientNamenodeProtocol {
     fn process(&self, method: &str, req_buf: &[u8],
             resp_buf: &mut Vec<u8>) {
         match method {
+            "addBlock" => self.add_block(req_buf, resp_buf),
+            "create" => self.create(req_buf, resp_buf),
             "getFileInfo" => self.get_file_info(req_buf, resp_buf),
             "getListing" => self.get_listing(req_buf, resp_buf),
             "mkdirs" => self.mkdirs(req_buf, resp_buf),
@@ -97,6 +144,7 @@ fn to_proto(file: &File, file_store: &FileStore) -> HdfsFileStatusProto {
     let mut proto = HdfsFileStatusProto::default();
     let path = file_store.compute_path(file.inode);
     proto.path = path.into_bytes();
+    proto.file_id = Some(file.inode);
 
     proto
 }

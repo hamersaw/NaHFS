@@ -1,11 +1,56 @@
-use super::File;
-
 use std::collections::HashMap;
 
+pub struct File {
+    pub inode: u64,
+    pub name: String,
+
+    pub file_type: i32, // 1 -> dir, 2 -> file
+    pub permissions: u32,
+    pub owner: String,
+    pub group: String,
+
+    pub blocks: Vec<u64>,
+    pub block_replication: u32,
+    pub block_size: u64,
+}
+
+impl File {
+    pub fn directory(inode: u64, name: String, permissions: u32,
+            owner: String, group: String) -> File {
+        File {
+            inode: inode,
+            name: name,
+            file_type: 1,
+            permissions: permissions,
+            owner: owner,
+            group: group,
+            blocks: Vec::new(),
+            block_replication: 0,
+            block_size: 0,
+        }
+    }
+
+    pub fn regular(inode: u64, name: String, permissions: u32,
+            owner: String, group: String, replication: u32,
+            block_size: u64) -> File {
+        File {
+            inode: inode,
+            name: name,
+            file_type: 2,
+            permissions: permissions,
+            owner: owner,
+            group: group,
+            blocks: Vec::new(),
+            block_replication: replication,
+            block_size: block_size,
+        }
+    }
+}
+
 pub struct FileStore {
-    inodes: HashMap<u32, File>,
-    children: HashMap<u32, Vec<u32>>,
-    parents: HashMap<u32, u32>,
+    inodes: HashMap<u64, File>,
+    children: HashMap<u64, Vec<u64>>,
+    parents: HashMap<u64, u64>,
 }
 
 impl FileStore {
@@ -15,7 +60,8 @@ impl FileStore {
         let mut children = HashMap::new();
 
         // create root node
-        inodes.insert(2, File::new(2, "".to_string(), 1));
+        inodes.insert(2, File::directory(2, "".to_string(), 0,
+            "root".to_owned(), "root".to_owned()));
         children.insert(2, Vec::new());
 
         FileStore {
@@ -25,11 +71,35 @@ impl FileStore {
         }
     }
 
-    pub fn create(&mut self, path: &str) {
-        unimplemented!();
+    pub fn create(&mut self, path: &str, permissions: u32, owner: &str,
+            group: &str, block_replication: u32, block_size: u64) {
+        // find longest path match
+        let components = parse_path(path);
+        let (inode, match_length) = self.get_longest_match(&components);
+
+        // check if directories are valid
+        if match_length == components.len() {
+            return; // directory already exists
+        } else if components.len() >= 1
+                && match_length < components.len() - 1 { 
+            return; // need to, and unable to create parents
+        }
+
+        // create file
+        let child_inode = rand::random::<u64>();
+        let filename = components[components.len() - 1].to_string();
+        let child_file = File::regular(child_inode, filename, 
+            permissions, owner.to_string(), group.to_string(),
+            block_replication, block_size);
+
+        // update data inode data structures
+        self.inodes.insert(child_inode, child_file);
+        self.parents.insert(child_inode, inode);
+        self.children.get_mut(&inode).unwrap().push(child_inode);
+        self.children.insert(child_inode, Vec::new());
     }
 
-    pub fn compute_path(&self, inode: u32) -> String {
+    pub fn compute_path(&self, inode: u64) -> String {
         let mut path = String::new();
         let mut current_inode = inode;
         loop {
@@ -62,7 +132,7 @@ impl FileStore {
         unimplemented!();
     }
 
-    pub fn get_children(&self, inode: u32) -> Option<Vec<&File>> {
+    pub fn get_children(&self, inode: u64) -> Option<Vec<&File>> {
         if !self.children.contains_key(&inode) {
             return None;
         }
@@ -75,7 +145,7 @@ impl FileStore {
         Some(children)
     }
 
-    fn get_longest_match(&self, components: &Vec<&str>) -> (u32, usize) {
+    fn get_longest_match(&self, components: &Vec<&str>) -> (u64, usize) {
         let (mut inode, mut match_length) = (2, 0);
         for i in 0..components.len() {
             for child_inode in self.children.get(&inode).unwrap() {
@@ -94,7 +164,8 @@ impl FileStore {
         (inode, match_length)
     }
 
-    pub fn mkdirs(&mut self, directory: &str, create_parent: bool) {
+    pub fn mkdirs(&mut self, directory: &str, permissions: u32,
+            owner: &str, group: &str, create_parent: bool) {
         // find longest path match
         let components = parse_path(directory);
         let (mut inode, match_length) = self.get_longest_match(&components);
@@ -110,9 +181,10 @@ impl FileStore {
         // create directories
         for i in match_length..components.len() {
             // initialize child file
-            let child_inode = rand::random::<u32>();
-            let child_file = File::new(child_inode,
-                components[i].to_string(), 1);
+            let child_inode = rand::random::<u64>();
+            let child_file = File::directory(child_inode,
+                components[i].to_string(), permissions,
+                owner.to_string(), group.to_string());
 
             // update data inode data structures
             self.inodes.insert(child_inode, child_file);
