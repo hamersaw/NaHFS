@@ -2,6 +2,7 @@ mod namenode;
 mod transfer;
 
 pub use namenode::NamenodeProtocol;
+pub use transfer::TransferStreamHandler;
 
 use hdfs_protos::hadoop::hdfs::{BlockKeyProto, DatanodeIdProto, ExportedBlockKeysProto, StorageInfoProto};
 use hdfs_protos::hadoop::hdfs::datanode::DatanodeRegistrationProto;

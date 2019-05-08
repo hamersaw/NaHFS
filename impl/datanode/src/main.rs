@@ -4,10 +4,14 @@ extern crate crossbeam_channel;
 extern crate log;
 extern crate structopt;
 
+use communication::Server;
 use structopt::StructOpt;
 
 mod protocol;
-use protocol::NamenodeProtocol;
+use protocol::{NamenodeProtocol, TransferStreamHandler};
+
+use std::net::TcpListener;
+use std::sync::{Arc, RwLock};
 
 fn main() {
     // initialize logger
@@ -16,21 +20,44 @@ fn main() {
     // parse arguments
     let config = Config::from_args();
 
-    // initialize NamenodeProtocol
-    let dr_proto = protocol::to_datanode_registration_proto(&config);
-    let mut namenode_protocol_service = NamenodeProtocol::new(
-        dr_proto, config.block_report_ms, config.heartbeat_ms,
-        &config.namenode_ip_address, config.namenode_port);
-    info!("initialized namenode_protocol service");
-
-    // start NamenodeProtocol
-    let namenode_protocol_result = namenode_protocol_service.start();
-    if let Err(e) = namenode_protocol_result {
-        error!("failed to start NamenodeProtocolService: {}", e);
+    // start transfer TcpListener
+    let address = format!("{}:{}", config.ip_address, config.port);
+    let listener_result = TcpListener::bind(&address);
+    if let Err(e) = listener_result {
+        error!("failed to open tcp listener on '{}': {}", address, e);
         return;
     }
 
-    info!("started namenode_protocol service");
+    let listener = listener_result.unwrap();
+
+    // initialize Server
+    let mut server = Server::new(listener,
+        config.thread_count, config.socket_wait_ms);
+    info!("initialized transfer server");
+
+    // start server
+    let handler = TransferStreamHandler::new();
+    if let Err(e) =
+            server.start(Arc::new(RwLock::new(Box::new(handler)))) {
+        error!("failed to start transfer server: {}", e);
+    }
+    info!("started transfer server");
+
+    // initialize NamenodeProtocol
+    let dr_proto = protocol::to_datanode_registration_proto(&config);
+    let mut namenode_protocol= NamenodeProtocol::new(
+        dr_proto, config.block_report_ms, config.heartbeat_ms,
+        &config.namenode_ip_address, config.namenode_port);
+    info!("initialized namenode protocol");
+
+    // start NamenodeProtocol
+    let namenode_protocol_result = namenode_protocol.start();
+    if let Err(e) = namenode_protocol_result {
+        error!("failed to start namenode protocol: {}", e);
+        return;
+    }
+
+    info!("started namenode protocol");
 
     // keep running indefinitely
     std::thread::park();
@@ -44,6 +71,10 @@ pub struct Config {
     ip_address: String,
     #[structopt(short="p", long="port", default_value="8020")]
     port: u32,
+    #[structopt(short="t", long="thread_count", default_value="4")]
+    thread_count: u8,
+    #[structopt(short="w", long="socket_wait_ms", default_value="50")]
+    socket_wait_ms: u64,
     #[structopt(short="a", long="namenode_ip_address", default_value="127.0.0.1")]
     namenode_ip_address: String,
     #[structopt(short="o", long="namenode_port", default_value="9000")]
