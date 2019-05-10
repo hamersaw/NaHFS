@@ -1,11 +1,12 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CreateRequestProto, CreateResponseProto, DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingRequestProto, GetListingResponseProto, HdfsFileStatusProto, MkdirsRequestProto, MkdirsResponseProto};
+use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto};
 use prost::Message;
 
 use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore};
 
 use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct ClientNamenodeProtocol {
     datanode_store: Arc<RwLock<DatanodeStore>>,
@@ -30,15 +31,42 @@ impl ClientNamenodeProtocol {
         debug!("addBlock({:?})", request);
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
-            // get random ids
+            let mut lb_proto = &mut response.block;
+
+            // populate random DatanodeInfoProto locations
             let datanode_store = self.datanode_store.read().unwrap();
             let ids = datanode_store.get_random_ids(file.block_replication);
-            println!("IDS: {:?}", ids);
 
-            // TODO - get everything
-            //datanode_store.get_datanode(ids[0]);
+            for id in ids {
+                let datanode = datanode_store.get_datanode(id).unwrap();
+                lb_proto.locs.push(super::to_datanode_info_proto(datanode));
+            }
+
+            // populate ExtendedBlockProto
+            let mut ex_proto = &mut lb_proto.b;
+            ex_proto.block_id = rand::random::<u64>();
+            ex_proto.generation_stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH).unwrap().as_secs() * 1000;
+
+            // TODO - add blockid to file
         }
 
+        response.encode_length_delimited(resp_buf).unwrap();
+    }
+
+    fn complete(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = CompleteRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = CompleteResponseProto::default();
+
+        // complete file
+        debug!("complete({:?})", request);
+        let mut file_store = self.file_store.write().unwrap();
+        if let Some(file) = file_store.get_file(&request.src) {
+            // TODO complete
+        }
+
+        response.result = true;
         response.encode_length_delimited(resp_buf).unwrap();
     }
 
@@ -55,7 +83,8 @@ impl ClientNamenodeProtocol {
 
         // get file
         if let Some(file) = file_store.get_file(&request.src) {
-            response.fs = Some(to_proto(file, &file_store));
+            response.fs = Some(crate::protocol
+                ::to_hdfs_file_status_proto(file, &file_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -70,7 +99,8 @@ impl ClientNamenodeProtocol {
         debug!("getFileInfo({:?})", request);
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
-            response.fs = Some(to_proto(file, &file_store));
+            response.fs = Some(crate::protocol
+                ::to_hdfs_file_status_proto(file, &file_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -91,11 +121,13 @@ impl ClientNamenodeProtocol {
                 1 => {
                     for child_file in file_store
                             .get_children(file.inode).unwrap() {
-                        partial_listing.push(
-                            to_proto(child_file, &file_store));
+                        partial_listing.push(crate::protocol
+                            ::to_hdfs_file_status_proto(child_file,
+                                &file_store));
                     }
                 },
-                2 => partial_listing.push(to_proto(file, &file_store)),
+                2 => partial_listing.push(crate::protocol
+                    ::to_hdfs_file_status_proto(file, &file_store)),
                 _ => unimplemented!(),
             }
 
@@ -107,6 +139,24 @@ impl ClientNamenodeProtocol {
             response.dir_list = Some(directory_listing);
         }
         
+        response.encode_length_delimited(resp_buf).unwrap();
+    }
+
+    fn get_server_defaults(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = GetServerDefaultsRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = GetServerDefaultsResponseProto::default();
+        let mut fsd_proto = &mut response.server_defaults;
+
+        // populate server defaults
+        debug!("getServerDefaults({:?})", request);
+        fsd_proto.block_size = 65536;
+        fsd_proto.bytes_per_checksum = 512;
+        fsd_proto.write_packet_size = 5000;
+        fsd_proto.replication = 3;
+        fsd_proto.file_buffer_size = 5000;
+        // TODO - parameterize server defaults values
+
         response.encode_length_delimited(resp_buf).unwrap();
     }
 
@@ -124,6 +174,20 @@ impl ClientNamenodeProtocol {
         response.result = true;
         response.encode_length_delimited(resp_buf).unwrap();
     }
+
+    fn rename(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = RenameRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = RenameResponseProto::default();
+
+        // create directories
+        debug!("rename({:?})", request);
+        let mut file_store = self.file_store.write().unwrap();
+        file_store.rename(&request.src, &request.dst);
+
+        response.result = true;
+        response.encode_length_delimited(resp_buf).unwrap();
+    }
 }
 
 impl Protocol for ClientNamenodeProtocol {
@@ -131,20 +195,14 @@ impl Protocol for ClientNamenodeProtocol {
             resp_buf: &mut Vec<u8>) {
         match method {
             "addBlock" => self.add_block(req_buf, resp_buf),
+            "complete" => self.complete(req_buf, resp_buf),
             "create" => self.create(req_buf, resp_buf),
             "getFileInfo" => self.get_file_info(req_buf, resp_buf),
             "getListing" => self.get_listing(req_buf, resp_buf),
+            "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf),
             "mkdirs" => self.mkdirs(req_buf, resp_buf),
+            "rename" => self.rename(req_buf, resp_buf),
             _ => error!("unimplemented method '{}'", method),
         }
     }
-}
-
-fn to_proto(file: &File, file_store: &FileStore) -> HdfsFileStatusProto {
-    let mut proto = HdfsFileStatusProto::default();
-    let path = file_store.compute_path(file.inode);
-    proto.path = path.into_bytes();
-    proto.file_id = Some(file.inode);
-
-    proto
 }

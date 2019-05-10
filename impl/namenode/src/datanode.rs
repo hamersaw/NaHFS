@@ -1,22 +1,19 @@
-use hdfs_protos::hadoop::hdfs::{BlockKeyProto, DatanodeIdProto, ExportedBlockKeysProto, StorageInfoProto};
-use hdfs_protos::hadoop::hdfs::datanode::{DatanodeRegistrationProto, HeartbeatRequestProto};
-
 use std::collections::HashMap;
 
 pub struct Datanode {
-    id: String,
-    ip_address: String,
-    xfer_port: u32,
-    storages: Vec<String>,
-    states: Vec<DatanodeState>,
+    pub id: String,
+    pub ip_address: String,
+    pub xfer_port: u32,
+    pub storages: Vec<String>,
+    pub states: Vec<DatanodeState>,
 }
 
 pub struct DatanodeState {
-    cache_capacity: Option<u64>,
-    cache_used: Option<u64>,
-    update_timestamp: u64,
-    xmits_in_progress: Option<u32>,
-    xceiver_count: Option<u32>,
+    pub cache_capacity: Option<u64>,
+    pub cache_used: Option<u64>,
+    pub update_timestamp: u64,
+    pub xmits_in_progress: Option<u32>,
+    pub xceiver_count: Option<u32>,
 }
 
 pub struct DatanodeStore {

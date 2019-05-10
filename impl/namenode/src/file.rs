@@ -196,8 +196,46 @@ impl FileStore {
         }
     }
 
-    pub fn rename(src_path: &str, dst_path: &str) {
-        unimplemented!();
+    pub fn rename(&mut self, src_path: &str, dst_path: &str) {
+        // compute src path components
+        let src_components = parse_path(src_path);
+        let (src_inode, src_match_length) =
+            self.get_longest_match(&src_components);
+
+        if src_match_length != src_components.len() {
+            return; // file does not exist
+        }
+
+        // compute dst path components
+        let dst_components = parse_path(dst_path);
+        let (dst_inode, dst_match_length) =
+            self.get_longest_match(&dst_components);
+
+        if dst_match_length != dst_components.len() - 1 {
+            return; // destination directory does not exist
+        }
+
+        // remove src file from children and parents
+        let parent_inode = self.parents
+            .get(&src_inode).unwrap().to_owned();
+        self.parents.remove(&src_inode);
+        let mut children = self.children.get_mut(&parent_inode).unwrap();
+        let mut index = 0;
+        for (i, value) in children.iter().enumerate() {
+            if value == &src_inode {
+                index = i;
+            }
+        }
+
+        children.remove(index);
+        
+        // add dst file to children and parents
+        self.children.get_mut(&dst_inode).unwrap().push(src_inode);
+        self.parents.insert(src_inode, dst_inode);
+
+        // TODO - change file name
+        let mut file = self.inodes.get_mut(&src_inode).unwrap();
+        file.name = dst_components.last().unwrap().to_string();
     }
 }
 

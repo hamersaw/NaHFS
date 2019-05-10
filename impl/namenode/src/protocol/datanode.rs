@@ -44,7 +44,6 @@ impl DatanodeProtocol {
                 let length = sbr_proto.blocks[index+1];
                 let generation_stamp = sbr_proto.blocks[index+2];
 
-
                 block_store.update(block_id, generation_stamp,
                     length, &datanode_id, &storage_id);
                 index += 4;
