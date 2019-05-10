@@ -4,7 +4,7 @@ pub struct Datanode {
     pub id: String,
     pub ip_address: String,
     pub xfer_port: u32,
-    pub storages: Vec<String>,
+    pub storage_ids: Vec<String>,
     pub states: Vec<DatanodeState>,
 }
 
@@ -27,6 +27,18 @@ impl DatanodeStore {
         }
     }
 
+    pub fn add_storage(&mut self, id: &str, storage_id: &str) {
+        if let Some(mut datanode) = self.map.get_mut(id) {
+            for value in datanode.storage_ids.iter() {
+                if value == storage_id {
+                    return;
+                }
+            }
+
+            datanode.storage_ids.push(storage_id.to_string());
+        }
+    }
+
     pub fn register(&mut self, id: String,
             ip_address: String, xfer_port: u32) {
         info!("registering datanode '{}' as {}:{}", id, ip_address, xfer_port);
@@ -36,7 +48,7 @@ impl DatanodeStore {
             id: id,
             ip_address: ip_address,
             xfer_port: xfer_port,
-            storages: Vec::new(),
+            storage_ids: Vec::new(),
             states: Vec::new(),
         };
         self.map.insert(id_clone, datanode);
@@ -68,10 +80,10 @@ impl DatanodeStore {
         ids
     }
 
-    pub fn update(&mut self, id: String, cache_capacity: Option<u64>,
+    pub fn update(&mut self, id: &str, cache_capacity: Option<u64>,
             cache_used: Option<u64>, update_timestamp: u64,
             xmits_in_progress: Option<u32>, xceiver_count: Option<u32>) {
-        if let Some(mut datanode) = self.map.get_mut(&id) {
+        if let Some(mut datanode) = self.map.get_mut(id) {
             // create and add state
             let state = DatanodeState {
                 cache_capacity: cache_capacity,

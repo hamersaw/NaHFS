@@ -23,13 +23,13 @@ impl StorageStore {
         }
     }
 
-    pub fn update(&mut self, id: String, capacity: Option<u64>,
+    pub fn update(&mut self, id: &str, capacity: Option<u64>,
             dfs_used: Option<u64>, remaining: Option<u64>,
             update_timestamp: u64) {
         // get storage, creating if it doesn't exist
-        let mut storage = self.map.entry(id.clone()).or_insert(
+        let mut storage = self.map.entry(id.to_string()).or_insert(
             Storage {
-                id: id,
+                id: id.to_string(),
                 states: Vec::new(),
             });
 

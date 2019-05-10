@@ -65,7 +65,7 @@ impl DatanodeProtocol {
 
         // process datanode report
         let mut datanode_store = self.datanode_store.write().unwrap();
-        let datanode_id = request.registration.datanode_id.datanode_uuid;
+        let datanode_id = &request.registration.datanode_id.datanode_uuid;
         datanode_store.update(datanode_id, request.cache_capacity,
             request.cache_used, time, request.xmits_in_progress,
             request.xceiver_count);
@@ -73,9 +73,11 @@ impl DatanodeProtocol {
         // process storage reports
         let mut storage_store = self.storage_store.write().unwrap();
         for sr_proto in request.reports {
-            storage_store.update(sr_proto.storage_uuid,
-                sr_proto.capacity, sr_proto.dfs_used,
-                sr_proto.remaining, time);
+            let storage_id = &sr_proto.storage_uuid;
+            storage_store.update(storage_id, sr_proto.capacity,
+                sr_proto.dfs_used, sr_proto.remaining, time);
+
+            datanode_store.add_storage(datanode_id, storage_id);
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
