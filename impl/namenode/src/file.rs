@@ -173,6 +173,25 @@ impl FileStore {
         (inode, match_length)
     }
 
+    pub fn get_storage_policy(&self, inode: &u64) -> Option<&str> {
+        let mut current_inode = inode;
+        loop {
+            // check current files storage policy
+            if let Some(policy) = 
+                    &self.inodes.get(current_inode).unwrap().storage_policy {
+                return Some(&policy);
+            }
+
+            if self.parents.contains_key(current_inode) {
+                current_inode = self.parents.get(current_inode).unwrap();
+            } else {
+                break;
+            }
+        }
+
+        None
+    }
+
     pub fn mkdirs(&mut self, directory: &str, permissions: u32,
             owner: &str, group: &str, create_parent: bool) {
         // find longest path match

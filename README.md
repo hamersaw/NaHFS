@@ -15,7 +15,6 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 - actually send block report and heartbeat messages (currently blank)
 #### namenode
 - pass IpcConnectionContext(user, etc) to populate owner/group on file creation
-- compute indexed block id's for INDEXED storage policies
 - compute file length in HdfsFileStatusProto creation
 - parameterize all hardcoded values!
 - implement getBlockLocations()!

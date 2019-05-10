@@ -8,6 +8,10 @@ use crate::file::{File, FileStore};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+static FIRST_BIT: u64 = 9223372036854775808;
+static INDEXED_MASK: u64 = 9223372032559808512;
+static NON_INDEXED_MASK: u64 = 9223372036854775807;
+
 pub struct ClientNamenodeProtocol {
     datanode_store: Arc<RwLock<DatanodeStore>>,
     file_store: Arc<RwLock<FileStore>>,
@@ -29,9 +33,18 @@ impl ClientNamenodeProtocol {
 
         // add block
         debug!("addBlock({:?})", request);
+        let mut block_id = rand::random::<u64>();
         let mut file_store = self.file_store.write().unwrap();
-        if let Some(mut file) = file_store.get_file_mut(&request.src) {
+        if let Some(file) = file_store.get_file(&request.src) {
             let mut lb_proto = &mut response.block;
+
+            // compute block id
+            if let Some("INDEXED") =
+                    file_store.get_storage_policy(&file.inode) {
+                block_id = (block_id & INDEXED_MASK) | FIRST_BIT;
+            } else {
+                block_id = block_id & NON_INDEXED_MASK;
+            }
 
             // populate random DatanodeInfoProto locations
             let datanode_store = self.datanode_store.read().unwrap();
@@ -44,12 +57,14 @@ impl ClientNamenodeProtocol {
 
             // populate ExtendedBlockProto
             let mut ex_proto = &mut lb_proto.b;
-            ex_proto.block_id = rand::random::<u64>();
+            ex_proto.block_id = block_id;
             ex_proto.generation_stamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH).unwrap().as_secs() * 1000;
+        }
 
-            // add blockid to file
-            file.blocks.push(ex_proto.block_id);
+        // add blockid to file
+        if let Some(mut file) = file_store.get_file_mut(&request.src) {
+            file.blocks.push(block_id);
         }
 
         response.encode_length_delimited(resp_buf).unwrap();

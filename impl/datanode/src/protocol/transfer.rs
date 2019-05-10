@@ -8,6 +8,7 @@ use std::net::TcpStream;
 use std::io::{Read, Write};
 
 static PROTOCOL_VERSION: u16 = 28;
+static FIRST_BIT: u64 = 9223372036854775808;
 
 pub struct TransferStreamHandler {
 }
@@ -50,7 +51,7 @@ impl StreamHandler for TransferStreamHandler {
             match op_type {
                 80 => {
                     // parse write block op
-                    let owb_proto = OpWriteBlockProto::decode(&buf);
+                    let owb_proto = OpWriteBlockProto::decode(&buf).unwrap();
                     debug!("WriteBlock: {:?}", owb_proto);
 
                     // send op response
@@ -60,6 +61,16 @@ impl StreamHandler for TransferStreamHandler {
                     let mut resp_buf = Vec::new();
                     bor_proto.encode_length_delimited(&mut resp_buf)?;
                     stream.write_all(&resp_buf)?;
+
+                    // parse block_id
+                    let block_id = owb_proto.header.base_header.block.block_id;
+                    if block_id & FIRST_BIT == FIRST_BIT {
+                        // TODO - process
+                        debug!("INDEXED BLOCK! - {}", block_id);
+                    } else {
+                        // TODO - process
+                        debug!("NON-INDEXED BLOCK - {}", block_id);
+                    }
 
                     // recv block
                     // TODO - parameterize these values
