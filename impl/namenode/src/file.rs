@@ -128,8 +128,14 @@ impl FileStore {
         Some(self.inodes.get(&inode).unwrap())
     }
 
-    pub fn get_file_mut(&self, path: &str) -> Option<&File> {
-        unimplemented!();
+    pub fn get_file_mut(&mut self, path: &str) -> Option<&mut File> {
+        let components = parse_path(path);
+        let (inode, match_length) = self.get_longest_match(&components);
+        if match_length != components.len() {
+            return None;
+        }
+
+        Some(self.inodes.get_mut(&inode).unwrap())
     }
 
     pub fn get_children(&self, inode: u64) -> Option<Vec<&File>> {
@@ -233,7 +239,7 @@ impl FileStore {
         self.children.get_mut(&dst_inode).unwrap().push(src_inode);
         self.parents.insert(src_inode, dst_inode);
 
-        // TODO - change file name
+        // change file name
         let mut file = self.inodes.get_mut(&src_inode).unwrap();
         file.name = dst_components.last().unwrap().to_string();
     }

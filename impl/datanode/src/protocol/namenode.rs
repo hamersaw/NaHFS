@@ -96,7 +96,7 @@ fn block_report(ip_address: &str, port: u16) -> std::io::Result<()> {
     let mut brr_proto = BlockReportRequestProto::default();
     // TODO - popualte BlockReportRequestProto
 
-    debug!("writing BlockReportRequest to {}:{}", ip_address, port);
+    trace!("writing BlockReportRequest to {}:{}", ip_address, port);
 
     let mut client = Client::new(ip_address, port)?;
     client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "blockReport", brr_proto)?;
@@ -111,7 +111,7 @@ fn heartbeat(ip_address: &str, port: u16) -> std::io::Result<()> {
     let mut hr_proto = HeartbeatRequestProto::default();
     // TODO - popualte HeartbeatRequestProto
 
-    debug!("writing HeartbeatRequest to {}:{}", ip_address, port);
+    trace!("writing HeartbeatRequest to {}:{}", ip_address, port);
 
     let mut client = Client::new(ip_address, port)?;
     client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "heartbeat", hr_proto)?;

@@ -29,8 +29,8 @@ impl ClientNamenodeProtocol {
 
         // add block
         debug!("addBlock({:?})", request);
-        let file_store = self.file_store.read().unwrap();
-        if let Some(file) = file_store.get_file(&request.src) {
+        let mut file_store = self.file_store.write().unwrap();
+        if let Some(mut file) = file_store.get_file_mut(&request.src) {
             let mut lb_proto = &mut response.block;
 
             // populate random DatanodeInfoProto locations
@@ -48,7 +48,8 @@ impl ClientNamenodeProtocol {
             ex_proto.generation_stamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH).unwrap().as_secs() * 1000;
 
-            // TODO - add blockid to file
+            // add blockid to file
+            file.blocks.push(ex_proto.block_id);
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
