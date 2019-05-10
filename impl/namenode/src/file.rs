@@ -8,6 +8,7 @@ pub struct File {
     pub permissions: u32,
     pub owner: String,
     pub group: String,
+    pub storage_policy: Option<String>,
 
     pub blocks: Vec<u64>,
     pub block_replication: u32,
@@ -24,6 +25,7 @@ impl File {
             permissions: permissions,
             owner: owner,
             group: group,
+            storage_policy: None,
             blocks: Vec::new(),
             block_replication: 0,
             block_size: 0,
@@ -40,6 +42,7 @@ impl File {
             permissions: permissions,
             owner: owner,
             group: group,
+            storage_policy: None,
             blocks: Vec::new(),
             block_replication: replication,
             block_size: block_size,
@@ -242,6 +245,17 @@ impl FileStore {
         // change file name
         let mut file = self.inodes.get_mut(&src_inode).unwrap();
         file.name = dst_components.last().unwrap().to_string();
+    }
+
+    pub fn set_storage_policy(&mut self, path: &str, storage_policy: &str) {
+        let components = parse_path(path);
+        let (inode, match_length) = self.get_longest_match(&components);
+        if match_length != components.len() {
+            return;
+        }
+
+        let mut file = self.inodes.get_mut(&inode).unwrap();
+        file.storage_policy = Some(storage_policy.to_string());
     }
 }
 

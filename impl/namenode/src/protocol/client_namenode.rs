@@ -1,5 +1,5 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto};
+use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
 
 use crate::datanode::{Datanode, DatanodeStore};
@@ -189,6 +189,19 @@ impl ClientNamenodeProtocol {
         response.result = true;
         response.encode_length_delimited(resp_buf).unwrap();
     }
+
+    fn set_storage_policy(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = SetStoragePolicyRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = SetStoragePolicyResponseProto::default();
+
+        // create directories
+        debug!("setStoragePolicy({:?})", request);
+        let mut file_store = self.file_store.write().unwrap();
+        file_store.set_storage_policy(&request.src, &request.policy_name);
+
+        response.encode_length_delimited(resp_buf).unwrap();
+    }
 }
 
 impl Protocol for ClientNamenodeProtocol {
@@ -203,6 +216,7 @@ impl Protocol for ClientNamenodeProtocol {
             "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf),
             "mkdirs" => self.mkdirs(req_buf, resp_buf),
             "rename" => self.rename(req_buf, resp_buf),
+            "setStoragePolicy" => self.set_storage_policy(req_buf, resp_buf),
             _ => error!("unimplemented method '{}'", method),
         }
     }
