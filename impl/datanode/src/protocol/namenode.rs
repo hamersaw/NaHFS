@@ -27,7 +27,7 @@ impl NamenodeProtocol {
             ip_address: ip_address.to_string(),
             port: port,
             join_handle: None,
-            shutdown_channel: crossbeam_channel::bounded(4),
+            shutdown_channel: crossbeam_channel::bounded(1),
         }
     }
 

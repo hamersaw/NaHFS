@@ -7,7 +7,10 @@ extern crate structopt;
 use communication::Server;
 use structopt::StructOpt;
 
+mod block;
 mod protocol;
+
+use block::{BlockStore, BlockProcessor};
 use protocol::{NamenodeProtocol, TransferStreamHandler};
 
 use std::net::TcpListener;
@@ -19,6 +22,21 @@ fn main() {
 
     // parse arguments
     let config = Config::from_args();
+
+    // initialize BlockStore
+    let block_store = Arc::new(RwLock::new(BlockStore::new()));
+    info!("initialized block store");
+
+    // initialize BlockProcessor
+    let mut processor =
+        BlockProcessor::new(config.processor_thread_count);
+    info!("initialized block processor");
+
+    // start BlockProcessor
+    if let Err(e) = processor.start() {
+        error!("failed to start block processor: {}", e);
+        return;
+    }
 
     // start transfer TcpListener
     let address = format!("{}:{}", config.ip_address, config.port);
@@ -36,10 +54,11 @@ fn main() {
     info!("initialized transfer server");
 
     // start server
-    let handler = TransferStreamHandler::new();
+    let handler = TransferStreamHandler::new(RwLock::new(processor));
     if let Err(e) =
             server.start(Arc::new(RwLock::new(Box::new(handler)))) {
         error!("failed to start transfer server: {}", e);
+        return;
     }
     info!("started transfer server");
 
@@ -77,6 +96,8 @@ pub struct Config {
     socket_wait_ms: u64,
     #[structopt(short="a", long="namenode_ip_address", default_value="127.0.0.1")]
     namenode_ip_address: String,
+    #[structopt(short="c", long="processor_thread_count", default_value="4")]
+    processor_thread_count: u8,
     #[structopt(short="o", long="namenode_port", default_value="9000")]
     namenode_port: u16,
     #[structopt(short="b", long="block_report", default_value="1000")]

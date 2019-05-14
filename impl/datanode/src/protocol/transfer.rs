@@ -4,18 +4,24 @@ use hdfs_comm::block::BlockInputStream;
 use hdfs_protos::hadoop::hdfs::{BlockOpResponseProto, OpReadBlockProto, OpWriteBlockProto, Status};
 use prost::Message;
 
-use std::net::TcpStream;
+use crate::block::{Block, BlockProcessor};
+
 use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::sync::RwLock;
 
 static PROTOCOL_VERSION: u16 = 28;
 static FIRST_BIT: u64 = 9223372036854775808;
 
 pub struct TransferStreamHandler {
+    processor: RwLock<BlockProcessor>,
 }
 
 impl TransferStreamHandler {
-    pub fn new() -> TransferStreamHandler {
+    pub fn new(processor: RwLock<BlockProcessor>)
+            -> TransferStreamHandler {
         TransferStreamHandler {
+            processor: processor,
         }
     }
 }
@@ -62,29 +68,33 @@ impl StreamHandler for TransferStreamHandler {
                     bor_proto.encode_length_delimited(&mut resp_buf)?;
                     stream.write_all(&resp_buf)?;
 
-                    // parse block_id
-                    let block_id = owb_proto.header.base_header.block.block_id;
-                    if block_id & FIRST_BIT == FIRST_BIT {
-                        // TODO - process
-                        debug!("INDEXED BLOCK! - {}", block_id);
-                    } else {
-                        // TODO - process
-                        debug!("NON-INDEXED BLOCK - {}", block_id);
-                    }
-
                     // recv block
                     // TODO - parameterize these values
                     let chunk_size_bytes = 512;
                     let chunks_per_packet = 126;
 
-                    let mut block = Vec::new();
+                    let mut data = Vec::new();
                     let mut block_stream = BlockInputStream::new(
                         stream.try_clone().unwrap(),
                         chunk_size_bytes, chunks_per_packet);
-                    block_stream.read_to_end(&mut block);
+                    block_stream.read_to_end(&mut data);
                     block_stream.close();
 
-                    debug!("read {} bytes into block", block.len());
+                    debug!("read {} bytes into block", data.len());
+
+                    // create Block struct
+                    let block_id = owb_proto.header.base_header.block.block_id;
+                    let block = Block::new(block_id, data);
+ 
+                    // parse block_id
+                    let processor = self.processor.read().unwrap();
+                    if block_id & FIRST_BIT == FIRST_BIT {
+                        debug!("INDEXED BLOCK! - {}", block_id);
+                        processor.add_index(block);
+                    } else {
+                        debug!("NON-INDEXED BLOCK - {}", block_id);
+                        processor.add_write(block);
+                    }
                 },
                 81 => {
                     // parse read block op
