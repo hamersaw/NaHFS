@@ -4,7 +4,7 @@ use hdfs_comm::block::BlockInputStream;
 use hdfs_protos::hadoop::hdfs::{BlockOpResponseProto, OpReadBlockProto, OpWriteBlockProto, Status};
 use prost::Message;
 
-use crate::block::{Block, BlockProcessor};
+use crate::block::BlockProcessor;
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -84,16 +84,15 @@ impl StreamHandler for TransferStreamHandler {
 
                     // create Block struct
                     let block_id = owb_proto.header.base_header.block.block_id;
-                    let block = Block::new(block_id, data);
  
                     // parse block_id
                     let processor = self.processor.read().unwrap();
                     if block_id & FIRST_BIT == FIRST_BIT {
                         debug!("INDEXED BLOCK! - {}", block_id);
-                        processor.add_index(block);
+                        processor.add_index(block_id, data);
                     } else {
                         debug!("NON-INDEXED BLOCK - {}", block_id);
-                        processor.add_write(block);
+                        processor.add_write(block_id, data);
                     }
                 },
                 81 => {
