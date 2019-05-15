@@ -14,6 +14,7 @@ use block::BlockProcessor;
 use protocol::{NamenodeProtocol, TransferStreamHandler};
 
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 fn main() {
@@ -24,6 +25,14 @@ fn main() {
     let config = Config::from_args();
 
     // initialize BlockProcessor
+    let path = Path::new(&config.data_directory);
+    if !path.exists() {
+        if let Err(e) = std::fs::create_dir_all(path) {
+            error!("failed to create data directory: {}", e);
+            return;
+        }
+    }
+ 
     let mut processor = BlockProcessor::new(
         config.processor_thread_count, config.data_directory.clone());
     info!("initialized block processor");
