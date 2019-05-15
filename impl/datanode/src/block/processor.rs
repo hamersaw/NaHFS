@@ -109,31 +109,47 @@ fn index_block(mut block_op: BlockOperation,
     let (mut min_timestamp, mut max_timestamp) =
         (std::u64::MAX, std::u64::MIN);
 
-    // iterate over each observation (separated by NEWLINE)
-    let mut start_index = 0;
+    let mut start_index;
     let mut end_index = 0;
-    let mut commas = Vec::new();
+    let mut delimiter_indices = Vec::new();
+    let mut feature_count = 0;
 
-    // TODO - need to check the first and last entries for full length - total number of fields
-    while end_index < block_op.data.len() {
-        // find end_index of current observation
-        while end_index != block_op.data.len() {
+    while end_index < block_op.data.len() - 1 {
+        // initialize iteration variables
+        start_index = end_index;
+        delimiter_indices.clear();
+
+        // compute observation boundaries
+        while end_index < block_op.data.len() - 1 {
+            end_index += 1;
             match block_op.data[end_index] {
-                44 => commas.push(end_index - start_index), // COMMA
+                44 => delimiter_indices.push(end_index - start_index),
                 10 => break, // NEWLINE
                 _ => (),
             }
+        }
 
-            end_index += 1;
+        if block_op.data[end_index] == 10 {
+            end_index += 1; // if currently on NEWLINE -> increment
+        }
+
+        // check if this is a valid observation
+        if feature_count == 0 && start_index == 0 {
+            continue; // first observation
+        } else if feature_count == 0 {
+            feature_count = delimiter_indices.len() + 1;
+        } else if delimiter_indices.len() + 1 != feature_count {
+            continue; // observations differing in feature counts
         }
 
         // process observation
-        match parse_metadata(&block_op.data[start_index..end_index], &commas) {
+        let observation = &block_op.data[start_index..end_index];
+        match parse_metadata(observation, &delimiter_indices) {
             Ok((geohash, timestamp)) => {
                 // index observation
-                let mut indicies = geohashes.entry(geohash)
+                let mut indices = geohashes.entry(geohash)
                     .or_insert(Vec::new());
-                indicies.push((start_index, end_index + 1));
+                indices.push((start_index, end_index));
 
                 // process timestamps
                 if timestamp < min_timestamp {
@@ -146,11 +162,6 @@ fn index_block(mut block_op: BlockOperation,
             },
             Err(e) => warn!("parse observation metadata: {}", e),
         }
-
-        // set variables for next iteration
-        end_index += 1;
-        start_index = end_index;
-        commas.clear();
     }
 
     let elapsed = now.elapsed().unwrap();
@@ -192,8 +203,8 @@ fn write_block(mut block_op: BlockOperation,
 
     if let Some(geohashes) = &block_op.index {
         // write indexed data
-        for (_, indicies) in geohashes {
-            for (start_index, end_index) in indicies {
+        for (_, indices) in geohashes {
+            for (start_index, end_index) in indices {
                 buf_writer.write_all(
                     &block_op.data[*start_index..*end_index])?;
             }
