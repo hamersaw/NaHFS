@@ -227,6 +227,11 @@ fn write_block(mut block_op: BlockOperation,
         let mut block_index = BlockIndex::default();
         block_index.geohash_indices = geohash_indices;
 
+        if let Some((start_timestamp, end_timestamp)) = block_op.timestamps {
+            block_index.start_timestamp = start_timestamp;
+            block_index.end_timestamp = end_timestamp;
+        }
+
         block_metadata.length = current_index as u64;
         block_metadata.index = Some(block_index);
     } else {
