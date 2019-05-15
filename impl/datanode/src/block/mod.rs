@@ -3,34 +3,29 @@ use std::collections::HashMap;
 mod processor;
 pub use processor::BlockProcessor;
 
-pub struct BlockIndex {
-    start_timestamp: u64,
-    end_timestamp: u64,
-    geohashes: Vec<(String, u32, u32)>,
+use std::collections::BTreeMap;
+
+pub enum Operation {
+    INDEX,
+    WRITE,
+    TRANSFER,
 }
 
-pub struct Block {
+pub struct BlockOperation {
+    operation: Operation,
     block_id: u64,
-    index: Option<BlockIndex>
+    data: Vec<u8>, 
+    index: Option<BTreeMap<String, Vec<(usize, usize)>>>,
 }
 
-impl Block {
-    pub fn new(block_id: u64) -> Block {
-        Block {
+impl BlockOperation {
+    pub fn new(operation: Operation, block_id: u64,
+            data: Vec<u8>) -> BlockOperation {
+        BlockOperation {
+            operation: operation,
             block_id: block_id,
+            data: data,
             index: None,
-        }
-    }
-}
-
-pub struct BlockStore {
-    map: HashMap<u64, Block>,
-}
-
-impl BlockStore {
-    pub fn new() -> BlockStore {
-        BlockStore {
-            map: HashMap::new(),
         }
     }
 }

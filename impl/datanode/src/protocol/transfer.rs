@@ -88,10 +88,8 @@ impl StreamHandler for TransferStreamHandler {
                     // parse block_id
                     let processor = self.processor.read().unwrap();
                     if block_id & FIRST_BIT == FIRST_BIT {
-                        debug!("INDEXED BLOCK! - {}", block_id);
                         processor.add_index(block_id, data);
                     } else {
-                        debug!("NON-INDEXED BLOCK - {}", block_id);
                         processor.add_write(block_id, data);
                     }
                 },

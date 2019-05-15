@@ -10,7 +10,7 @@ use structopt::StructOpt;
 mod block;
 mod protocol;
 
-use block::{BlockStore, BlockProcessor};
+use block::BlockProcessor;
 use protocol::{NamenodeProtocol, TransferStreamHandler};
 
 use std::net::TcpListener;
@@ -23,13 +23,9 @@ fn main() {
     // parse arguments
     let config = Config::from_args();
 
-    // initialize BlockStore
-    let block_store = Arc::new(RwLock::new(BlockStore::new()));
-    info!("initialized block store");
-
     // initialize BlockProcessor
-    let mut processor =
-        BlockProcessor::new(config.processor_thread_count);
+    let mut processor = BlockProcessor::new(
+        config.processor_thread_count, config.data_directory.clone());
     info!("initialized block processor");
 
     // start BlockProcessor
@@ -86,6 +82,8 @@ fn main() {
 pub struct Config {
     #[structopt(name="ID")]
     id: String,
+    #[structopt(name="DATA_DIR")]
+    data_directory: String,
     #[structopt(short="i", long="ip_address", default_value="127.0.0.1")]
     ip_address: String,
     #[structopt(short="p", long="port", default_value="8020")]

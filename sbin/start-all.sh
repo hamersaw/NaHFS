@@ -51,7 +51,7 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start datanode
-        RUST_LOG=debug $DATANODE ${ARRAY[1]} -i ${ARRAY[2]} \
+        RUST_LOG=debug $DATANODE ${ARRAY[1]} $PROJECT_DIR/data/${ARRAY[1]} -i ${ARRAY[2]} \
             -p ${ARRAY[3]} -a $NAMENODE_IP -o $NAMENODE_PORT \
             > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 &
 

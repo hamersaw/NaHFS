@@ -1,37 +1,17 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
 use shared::NahError;
 
+use super::{BlockOperation, Operation};
+
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 
-pub enum Operation {
-    INDEX,
-    WRITE,
-    TRANSFER,
-}
-
-pub struct BlockOperation {
-    operation: Operation,
-    block_id: u64,
-    data: Vec<u8>, 
-    index: Option<BTreeMap<String, Vec<(usize, usize)>>>,
-}
-
-impl BlockOperation {
-    pub fn new(operation: Operation, block_id: u64,
-            data: Vec<u8>) -> BlockOperation {
-        BlockOperation {
-            operation: operation,
-            block_id: block_id,
-            data: data,
-            index: None,
-        }
-    }
-}
-
 pub struct BlockProcessor {
     thread_count: u8,
+    data_directory: String,
     operation_channel: (Sender<BlockOperation>,
         Receiver<BlockOperation>),
     shutdown_channel: (Sender<bool>, Receiver<bool>),
@@ -39,11 +19,12 @@ pub struct BlockProcessor {
 }
 
 impl BlockProcessor {
-    pub fn new(thread_count: u8) -> BlockProcessor {
+    pub fn new(thread_count: u8, data_directory: String)
+            -> BlockProcessor {
         BlockProcessor {
             thread_count: thread_count,
-            // TODO - bound channels to alleviate memory contention
-            operation_channel: crossbeam_channel::unbounded(),
+            data_directory: data_directory,
+            operation_channel: crossbeam_channel::unbounded(), // TODO - bound channels to alleviate memory contention
             shutdown_channel: crossbeam_channel::unbounded(),
             join_handles: Vec::new(),
         }
@@ -64,6 +45,8 @@ impl BlockProcessor {
     pub fn start(&mut self) -> Result<(), NahError> {
         for _ in 0..self.thread_count {
             // clone variables
+            let data_directory_clone = self.data_directory.clone();
+            let operation_sender = self.operation_channel.0.clone();
             let operation_receiver = self.operation_channel.1.clone();
             let shutdown_receiver = self.shutdown_channel.1.clone();
 
@@ -80,10 +63,10 @@ impl BlockProcessor {
                             // process block operation
                             let mut block_op = result.unwrap();
                             let result = match block_op.operation {
-                                Operation::INDEX =>
-                                    index_block(&mut block_op),
-                                Operation::WRITE =>
-                                    write_block(&block_op),
+                                Operation::INDEX => index_block(
+                                    block_op, &operation_sender),
+                                Operation::WRITE => write_block(block_op,
+                                    &operation_sender, &data_directory_clone),
                                 Operation::TRANSFER =>
                                     transfer_block(&block_op),
                             };
@@ -118,7 +101,8 @@ impl BlockProcessor {
     }
 }
 
-fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
+fn index_block(mut block_op: BlockOperation,
+        sender: &Sender<BlockOperation>) -> Result<(), NahError> {
     let now = SystemTime::now();
     let mut geohashes: BTreeMap<String, Vec<(usize, usize)>> =
         BTreeMap::new();
@@ -129,6 +113,8 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
     let mut start_index = 0;
     let mut end_index = 0;
     let mut commas = Vec::new();
+
+    // TODO - need to check the first and last entries for full length - total number of fields
     while end_index < block_op.data.len() {
         // find end_index of current observation
         while end_index != block_op.data.len() {
@@ -141,13 +127,13 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
             end_index += 1;
         }
 
-        // parse metadata
+        // process observation
         match parse_metadata(&block_op.data[start_index..end_index], &commas) {
             Ok((geohash, timestamp)) => {
                 // index observation
                 let mut indicies = geohashes.entry(geohash)
                     .or_insert(Vec::new());
-                indicies.push((start_index, end_index));
+                indicies.push((start_index, end_index + 1));
 
                 // process timestamps
                 if timestamp < min_timestamp {
@@ -161,18 +147,22 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
             Err(e) => warn!("parse observation metadata: {}", e),
         }
 
-        // set start_index 
+        // set variables for next iteration
         end_index += 1;
         start_index = end_index;
         commas.clear();
     }
 
     let elapsed = now.elapsed().unwrap();
-    debug!("indexed block {} in {}.{}", block_op.block_id,
+    debug!("indexed block {} in {}.{}s", block_op.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
+    // update block_op and write
     // TODO - add timestamps to block index
+    block_op.operation = Operation::WRITE;
     block_op.index = Some(geohashes);
+    sender.send(block_op); // TODO - handle error
+
     Ok(())
 }
 
@@ -190,8 +180,38 @@ fn parse_metadata(data: &[u8], commas: &Vec<usize>)
     Ok((geohash, timestamp))
 }
 
-fn write_block(block_op: &BlockOperation) -> Result<(), NahError> {
-    println!("TODO - WRITE BLOCK: {}", block_op.block_id);
+fn write_block(mut block_op: BlockOperation, 
+        sender: &Sender<BlockOperation>, 
+        data_directory: &str) -> Result<(), NahError> {
+    let now = SystemTime::now();
+
+    // write block and block metadata files
+    let mut file = File::create(format!("{}/blk_{}", 
+        data_directory, block_op.block_id))?;
+    let mut buf_writer = BufWriter::new(file);
+
+    if let Some(geohashes) = &block_op.index {
+        // write indexed data
+        for (_, indicies) in geohashes {
+            for (start_index, end_index) in indicies {
+                buf_writer.write_all(
+                    &block_op.data[*start_index..*end_index])?;
+            }
+        }
+        // TODO - write indexed block metadata
+    } else {
+        // write data
+        buf_writer.write_all(&block_op.data)?;
+        // TODO - write block metadata
+    }
+
+    let elapsed = now.elapsed().unwrap();
+    debug!("wrote block {} in {}.{}s", block_op.block_id,
+        elapsed.as_secs(), elapsed.subsec_millis());
+
+    // update block_op and transfer
+    block_op.operation = Operation::TRANSFER;
+    sender.send(block_op); // TODO - handle error
 
     Ok(())
 }
