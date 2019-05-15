@@ -1,11 +1,14 @@
 use std::fs::File;
 use std::io::Read;
 use std::fmt::{Display, Formatter};
+use std::num::{ParseFloatError, ParseIntError};
 
 #[derive(Debug)]
 pub enum NahError {
     IoError(std::io::Error),
     Nah(String),
+    ParseFloatError(ParseFloatError),
+    ParseIntError(ParseIntError),
 }
 
 impl Display for NahError {
@@ -13,6 +16,8 @@ impl Display for NahError {
         match *self {
             NahError::IoError(ref err) => write!(f, "IoError: {:?}", err),
             NahError::Nah(ref err) => write!(f, "NahError: {}", err),
+            NahError::ParseFloatError(ref err) => write!(f, "ParseFloatError: {}", err),
+            NahError::ParseIntError(ref err) => write!(f, "ParseIntError: {}", err),
         }
     }
 }
@@ -20,6 +25,18 @@ impl Display for NahError {
 impl From<std::io::Error> for NahError {
     fn from(err: std::io::Error) -> NahError {
         NahError::IoError(err)
+    }
+}
+
+impl From<ParseFloatError> for NahError {
+    fn from(err: ParseFloatError) -> NahError {
+        NahError::ParseFloatError(err)
+    }
+}
+
+impl From<ParseIntError> for NahError {
+    fn from(err: ParseIntError) -> NahError {
+        NahError::ParseIntError(err)
     }
 }
 

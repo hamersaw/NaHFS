@@ -1,9 +1,9 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
 use shared::NahError;
 
-use super::Block;
-
+use std::collections::BTreeMap;
 use std::thread::JoinHandle;
+use std::time::SystemTime;
 
 pub enum Operation {
     INDEX,
@@ -13,19 +13,19 @@ pub enum Operation {
 
 pub struct BlockOperation {
     operation: Operation,
-    block: Block,
+    block_id: u64,
     data: Vec<u8>, 
-    write_indices: Vec<(u32, u32)>,
+    index: Option<BTreeMap<String, Vec<(usize, usize)>>>,
 }
 
 impl BlockOperation {
-    pub fn new(operation: Operation, block: Block,
+    pub fn new(operation: Operation, block_id: u64,
             data: Vec<u8>) -> BlockOperation {
         BlockOperation {
             operation: operation,
-            block: block,
+            block_id: block_id,
             data: data,
-            write_indices: Vec::new(),
+            index: None,
         }
     }
 }
@@ -51,15 +51,13 @@ impl BlockProcessor {
 
     pub fn add_index(&self, block_id: u64, data: Vec<u8>)
             -> Result<(), SendError<BlockOperation>> {
-        let block = Block::new(block_id);
-        let block_op = BlockOperation::new(Operation::INDEX, block, data);
+        let block_op = BlockOperation::new(Operation::INDEX, block_id, data);
         self.operation_channel.0.send(block_op)
     }
 
     pub fn add_write(&self, block_id: u64, data: Vec<u8>)
             -> Result<(), SendError<BlockOperation>> {
-        let block = Block::new(block_id);
-        let block_op = BlockOperation::new(Operation::WRITE, block, data);
+        let block_op = BlockOperation::new(Operation::WRITE, block_id, data);
         self.operation_channel.0.send(block_op)
     }
 
@@ -121,16 +119,84 @@ impl BlockProcessor {
 }
 
 fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
-    println!("TODO - INDEX BLOCK: {}", block_op.block.block_id);
+    let now = SystemTime::now();
+    let mut geohashes: BTreeMap<String, Vec<(usize, usize)>> =
+        BTreeMap::new();
+    let (mut min_timestamp, mut max_timestamp) =
+        (std::u64::MAX, std::u64::MIN);
+
+    // iterate over each observation (separated by NEWLINE)
+    let mut start_index = 0;
+    let mut end_index = 0;
+    let mut commas = Vec::new();
+    while end_index < block_op.data.len() {
+        // find end_index of current observation
+        while end_index != block_op.data.len() {
+            match block_op.data[end_index] {
+                44 => commas.push(end_index - start_index), // COMMA
+                10 => break, // NEWLINE
+                _ => (),
+            }
+
+            end_index += 1;
+        }
+
+        // parse metadata
+        match parse_metadata(&block_op.data[start_index..end_index], &commas) {
+            Ok((geohash, timestamp)) => {
+                // index observation
+                let mut indicies = geohashes.entry(geohash)
+                    .or_insert(Vec::new());
+                indicies.push((start_index, end_index));
+
+                // process timestamps
+                if timestamp < min_timestamp {
+                    min_timestamp = timestamp;
+                }
+
+                if timestamp > max_timestamp {
+                    max_timestamp = timestamp;
+                }
+            },
+            Err(e) => warn!("parse observation metadata: {}", e),
+        }
+
+        // set start_index 
+        end_index += 1;
+        start_index = end_index;
+        commas.clear();
+    }
+
+    let elapsed = now.elapsed().unwrap();
+    debug!("indexed block {} in {}.{}", block_op.block_id,
+        elapsed.as_secs(), elapsed.subsec_millis());
+
+    // TODO - add timestamps to block index
+    block_op.index = Some(geohashes);
     Ok(())
 }
 
+fn parse_metadata(data: &[u8], commas: &Vec<usize>)
+        -> Result<(String, u64), NahError> {
+    let latitude_str = String::from_utf8_lossy(&data[0..commas[0]]);
+    let longitude_str = String::from_utf8_lossy(&data[commas[0]+1..commas[1]]);
+    let timestamp_str = String::from_utf8_lossy(&data[commas[2]+1..commas[3]-2]);
+
+    let latitude = latitude_str.parse::<f32>()?;
+    let longitude = longitude_str.parse::<f32>()?;
+    let timestamp = timestamp_str.parse::<u64>()?;
+
+    let geohash = geohash::encode_16(latitude, longitude, 4)?;
+    Ok((geohash, timestamp))
+}
+
 fn write_block(block_op: &BlockOperation) -> Result<(), NahError> {
-    println!("TODO - WRITE BLOCK: {}", block_op.block.block_id);
+    println!("TODO - WRITE BLOCK: {}", block_op.block_id);
+
     Ok(())
 }
 
 fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
-    println!("TODO - TRANSFER BLOCK: {}", block_op.block.block_id);
+    println!("TODO - TRANSFER BLOCK: {}", block_op.block_id);
     Ok(())
 }
