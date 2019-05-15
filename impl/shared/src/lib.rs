@@ -1,7 +1,9 @@
-use std::fs::File;
-use std::io::Read;
 use std::fmt::{Display, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
+
+pub mod protos {
+    include!(concat!(env!("OUT_DIR"), "/nahfs.rs"));
+}
 
 #[derive(Debug)]
 pub enum NahError {

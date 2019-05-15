@@ -1,5 +1,7 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
+use prost::Message;
 use shared::NahError;
+use shared::protos::{BlockIndex, BlockMetadata, GeohashIndex};
 
 use super::{BlockOperation, Operation};
 
@@ -169,8 +171,8 @@ fn index_block(mut block_op: BlockOperation,
         elapsed.as_secs(), elapsed.subsec_millis());
 
     // update block_op and write
-    // TODO - add timestamps to block index
     block_op.operation = Operation::WRITE;
+    block_op.timestamps = Some((min_timestamp, max_timestamp));
     block_op.index = Some(geohashes);
     sender.send(block_op); // TODO - handle error
 
@@ -196,25 +198,52 @@ fn write_block(mut block_op: BlockOperation,
         data_directory: &str) -> Result<(), NahError> {
     let now = SystemTime::now();
 
-    // write block and block metadata files
+    // write block and compute block metadata
     let mut file = File::create(format!("{}/blk_{}", 
         data_directory, block_op.block_id))?;
     let mut buf_writer = BufWriter::new(file);
 
+    let mut block_metadata = BlockMetadata::default();
+    block_metadata.block_id = block_op.block_id;
     if let Some(geohashes) = &block_op.index {
         // write indexed data
-        for (_, indices) in geohashes {
+        let mut geohash_indices = Vec::new();
+        let mut current_index = 0;
+        for (geohash, indices) in geohashes {
+            let mut geohash_index = GeohashIndex::default();
+            geohash_index.geohash = geohash.to_string();
+            geohash_index.start_index = current_index as u32;
+
             for (start_index, end_index) in indices {
                 buf_writer.write_all(
                     &block_op.data[*start_index..*end_index])?;
+                current_index += end_index - start_index;
             }
+
+            geohash_index.end_index = current_index as u32;
+            geohash_indices.push(geohash_index);
         }
-        // TODO - write indexed block metadata
+
+        let mut block_index = BlockIndex::default();
+        block_index.geohash_indices = geohash_indices;
+
+        block_metadata.length = current_index as u64;
+        block_metadata.index = Some(block_index);
     } else {
         // write data
         buf_writer.write_all(&block_op.data)?;
-        // TODO - write block metadata
+        
+        block_metadata.length = block_op.data.len() as u64;
     }
+
+    // write block metadata
+    let mut buf = Vec::new();
+    block_metadata.encode_length_delimited(&mut buf);
+
+    let mut meta_file = File::create(format!("{}/blk_{}.meta", 
+        data_directory, block_op.block_id))?;
+    let mut meta_buf_writer = BufWriter::new(meta_file);
+    meta_buf_writer.write_all(&buf)?;
 
     let elapsed = now.elapsed().unwrap();
     debug!("wrote block {} in {}.{}s", block_op.block_id,

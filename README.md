@@ -13,8 +13,6 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 - process indexed and not indexed blocks
     - handle records which don't fall on boundaries
     - __include timestamp in block index__
-    - **write data (blk_x, blk_x.meta)**
-- zero-copy block reads
 - actually send block report and heartbeat messages (currently blank)
 - bound BlockProcessor channels to alleviate memory usage
 #### namenode
