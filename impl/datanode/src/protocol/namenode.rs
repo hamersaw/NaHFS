@@ -1,8 +1,12 @@
 use crossbeam_channel::{self, Receiver, Sender};
 use hdfs_comm::rpc::Client;
-use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, DatanodeRegistrationProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto};
+use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, DatanodeRegistrationProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
+use prost::Message;
 use shared::NahError;
+use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto};
 
+use std::fs::File;
+use std::io::Read;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -10,6 +14,7 @@ pub struct NamenodeProtocol {
     dr_proto: DatanodeRegistrationProto,
     block_report_duration: Duration,
     heartbeat_duration: Duration,
+    data_directory: String,
     ip_address: String,
     port: u16,
     join_handle: Option<JoinHandle<()>>,
@@ -17,13 +22,14 @@ pub struct NamenodeProtocol {
 }
 
 impl NamenodeProtocol {
-    pub fn new(dr_proto: DatanodeRegistrationProto, 
-            heartbeat_ms: u64, block_report_ms: u64,
+    pub fn new(dr_proto: DatanodeRegistrationProto, heartbeat_ms: u64,
+            block_report_ms: u64, data_directory: &str,
             ip_address: &str, port: u16) -> NamenodeProtocol {
         NamenodeProtocol {
             dr_proto: dr_proto,
             block_report_duration: Duration::from_millis(block_report_ms),
             heartbeat_duration: Duration::from_millis(heartbeat_ms),
+            data_directory: data_directory.to_string(),
             ip_address: ip_address.to_string(),
             port: port,
             join_handle: None,
@@ -53,6 +59,8 @@ impl NamenodeProtocol {
             crossbeam_channel::tick(self.heartbeat_duration);
 
         // clone variables
+        let dr_proto_clone = self.dr_proto.clone();
+        let data_directory_clone = self.data_directory.clone();
         let ip_address_clone = self.ip_address.clone();
         let port_clone = self.port.clone();
 
@@ -62,7 +70,8 @@ impl NamenodeProtocol {
                 select! {
                     recv(block_report_tick) -> _ => {
                         if let Err(e) = block_report(&ip_address_clone,
-                                port_clone) {
+                                port_clone, &data_directory_clone,
+                                &dr_proto_clone) {
                             warn!("block report failed: {}", e);
                         }
                     },
@@ -91,12 +100,40 @@ impl NamenodeProtocol {
     }
 }
 
-fn block_report(ip_address: &str, port: u16) -> std::io::Result<()> {
-    // initialize BlockReportRequestProto 
-    let mut brr_proto = BlockReportRequestProto::default();
-    // TODO - popualte BlockReportRequestProto
+fn block_report(ip_address: &str, port: u16, data_directory: &str,
+        dr_proto: &DatanodeRegistrationProto) -> Result<(), NahError> {
+    // initialize StorageBlockReportProto
+    let mut sbr_proto = StorageBlockReportProto::default();
+
+    // read block metadata files
+    let metadata_glob = format!("{}/*.meta", data_directory);
+    let mut buf = Vec::new();
+    for entry in glob::glob(&metadata_glob)? {
+        // read file into buffer
+        buf.clear();
+        let mut file = File::open(entry?)?;
+        file.read_to_end(&mut buf)?;
+
+        // parse BlockMetadataProto
+        let bm_proto = BlockMetadataProto
+            ::decode_length_delimited(&buf)?;
+
+        // add block metadata to StorageBlockReportProto
+        let blocks = &mut sbr_proto.blocks;
+        blocks.push(bm_proto.block_id);
+        blocks.push(bm_proto.length);
+        blocks.push(0u64); // TODO - generation stamp
+        blocks.push(0u64); // TODO - replica state
+
+        // TODO - process block index metadata
+    }
 
     trace!("writing BlockReportRequest to {}:{}", ip_address, port);
+
+    // initialize BlockReportRequestProto 
+    let mut brr_proto = BlockReportRequestProto::default();
+    brr_proto.registration = dr_proto.clone();
+    brr_proto.reports.push(sbr_proto);
 
     let mut client = Client::new(ip_address, port)?;
     client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "blockReport", brr_proto)?;
@@ -109,7 +146,7 @@ fn block_report(ip_address: &str, port: u16) -> std::io::Result<()> {
 fn heartbeat(ip_address: &str, port: u16) -> std::io::Result<()> {
     // initialize HeartbeatRequestProto 
     let mut hr_proto = HeartbeatRequestProto::default();
-    // TODO - popualte HeartbeatRequestProto
+    // TODO - populate HeartbeatRequestProto
 
     trace!("writing HeartbeatRequest to {}:{}", ip_address, port);
 

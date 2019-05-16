@@ -9,10 +9,13 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
     ./bin/hdfs dfs -copyFromLocal ~/Downloads/noaa-imputed/8z6_2014_DECEMBER.csv /user/hamersaw
 
 ## TODO
+- persist system on disk
 #### datanode
 - handle data which doesn't fall on boundaries (currently removing first and last observations)
-- actually send block report and heartbeat messages (currently blank)
+- populate heartbeat messages
+- send IndexReportProto with "com.bushpath.nahfs.protocol.DatanodeProtocol";
 - bound BlockProcessor channels to alleviate memory usage
+- implement notion of "storage" - at least set storageId
 #### namenode
 - pass IpcConnectionContext(user, etc) to populate owner/group on file creation
 - compute file length in HdfsFileStatusProto creation

@@ -2,30 +2,30 @@ syntax = 'proto2';
 
 package nahfs;
 
-message BlockMetadata {
+message BlockMetadataProto {
     required uint32 version = 1;
     required uint64 blockId = 2;
     required uint64 length = 3;
-    optional BlockIndex index = 4;
+    optional BlockIndexProto index = 4;
 }
 
-message BlockIndex {
+message BlockIndexProto {
     required uint64 startTimestamp = 2;
     required uint64 endTimestamp = 3;
-    repeated GeohashIndex geohashIndices = 4;
+    repeated GeohashIndexProto geohashIndices = 4;
 }
 
-message GeohashIndex {
+message GeohashIndexProto {
     required string geohash = 1;
     required uint32 startIndex = 2;
     required uint32 endIndex = 3;
 }
 
-message IndexReportRequest {
-    required uint64 blockId = 1;
-    repeated BlockIndex indices = 2;
+message IndexReportRequestProto {
+    required string datanodeId = 1;
+    repeated uint64 blockId = 2;
+    repeated BlockIndexProto blockIndices = 3;
 }
 
-message IndexReportResponse {
+message IndexReportResponseProto {
 }
-

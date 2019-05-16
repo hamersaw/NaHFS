@@ -71,7 +71,8 @@ fn main() {
     let dr_proto = protocol::to_datanode_registration_proto(&config);
     let mut namenode_protocol= NamenodeProtocol::new(
         dr_proto, config.block_report_ms, config.heartbeat_ms,
-        &config.namenode_ip_address, config.namenode_port);
+        &config.data_directory, &config.namenode_ip_address,
+        config.namenode_port);
     info!("initialized namenode protocol");
 
     // start NamenodeProtocol

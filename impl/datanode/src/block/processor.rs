@@ -1,7 +1,7 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
 use prost::Message;
 use shared::NahError;
-use shared::protos::{BlockIndex, BlockMetadata, GeohashIndex};
+use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto};
 
 use super::{BlockOperation, Operation};
 
@@ -203,16 +203,16 @@ fn write_block(mut block_op: BlockOperation,
         data_directory, block_op.block_id))?;
     let mut buf_writer = BufWriter::new(file);
 
-    let mut block_metadata = BlockMetadata::default();
-    block_metadata.block_id = block_op.block_id;
+    let mut bm_proto = BlockMetadataProto::default();
+    bm_proto.block_id = block_op.block_id;
     if let Some(geohashes) = &block_op.index {
         // write indexed data
         let mut geohash_indices = Vec::new();
         let mut current_index = 0;
         for (geohash, indices) in geohashes {
-            let mut geohash_index = GeohashIndex::default();
-            geohash_index.geohash = geohash.to_string();
-            geohash_index.start_index = current_index as u32;
+            let mut gi_proto = GeohashIndexProto::default();
+            gi_proto.geohash = geohash.to_string();
+            gi_proto.start_index = current_index as u32;
 
             for (start_index, end_index) in indices {
                 buf_writer.write_all(
@@ -220,30 +220,30 @@ fn write_block(mut block_op: BlockOperation,
                 current_index += end_index - start_index;
             }
 
-            geohash_index.end_index = current_index as u32;
-            geohash_indices.push(geohash_index);
+            gi_proto.end_index = current_index as u32;
+            geohash_indices.push(gi_proto);
         }
 
-        let mut block_index = BlockIndex::default();
-        block_index.geohash_indices = geohash_indices;
+        let mut bi_proto = BlockIndexProto::default();
+        bi_proto.geohash_indices = geohash_indices;
 
         if let Some((start_timestamp, end_timestamp)) = block_op.timestamps {
-            block_index.start_timestamp = start_timestamp;
-            block_index.end_timestamp = end_timestamp;
+            bi_proto.start_timestamp = start_timestamp;
+            bi_proto.end_timestamp = end_timestamp;
         }
 
-        block_metadata.length = current_index as u64;
-        block_metadata.index = Some(block_index);
+        bm_proto.length = current_index as u64;
+        bm_proto.index = Some(bi_proto);
     } else {
         // write data
         buf_writer.write_all(&block_op.data)?;
         
-        block_metadata.length = block_op.data.len() as u64;
+        bm_proto.length = block_op.data.len() as u64;
     }
 
     // write block metadata
     let mut buf = Vec::new();
-    block_metadata.encode_length_delimited(&mut buf);
+    bm_proto.encode_length_delimited(&mut buf);
 
     let mut meta_file = File::create(format!("{}/blk_{}.meta", 
         data_directory, block_op.block_id))?;
