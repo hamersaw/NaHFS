@@ -16,12 +16,13 @@ pub struct BlockProcessor {
 }
 
 impl BlockProcessor {
-    pub fn new(thread_count: u8, data_directory: String)
-            -> BlockProcessor {
+    pub fn new(thread_count: u8, queue_length:u8,
+            data_directory: String) -> BlockProcessor {
         BlockProcessor {
             thread_count: thread_count,
             data_directory: data_directory,
-            operation_channel: crossbeam_channel::unbounded(), // TODO - bound channels to alleviate memory contention
+            operation_channel: crossbeam_channel
+                ::bounded(queue_length as usize),
             shutdown_channel: crossbeam_channel::unbounded(),
             join_handles: Vec::new(),
         }
