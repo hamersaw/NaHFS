@@ -1,15 +1,10 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
-use prost::Message;
 use shared::NahError;
-use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto};
 
 use super::{BlockOperation, Operation};
 
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::{BufWriter, Write};
 use std::thread::JoinHandle;
-use std::time::SystemTime;
 
 pub struct BlockProcessor {
     thread_count: u8,
@@ -53,34 +48,8 @@ impl BlockProcessor {
             let shutdown_receiver = self.shutdown_channel.1.clone();
 
             let join_handle = std::thread::spawn(move || {
-                loop {
-                    select! {
-                        recv(operation_receiver) -> result => {
-                            // read block operation
-                            if let Err(e) = result {
-                                error!("recv block operation: {}", e);
-                                continue;
-                            }
-
-                            // process block operation
-                            let mut block_op = result.unwrap();
-                            let result = match block_op.operation {
-                                Operation::INDEX => index_block(
-                                    block_op, &operation_sender),
-                                Operation::WRITE => write_block(block_op,
-                                    &operation_sender, &data_directory_clone),
-                                Operation::TRANSFER =>
-                                    transfer_block(&block_op),
-                            };
-
-                            // check for error
-                            if let Err(e) = result {
-                                error!("processing block: {}", e);
-                            }
-                        },
-                        recv(shutdown_receiver) -> _ => break,
-                    }
-                }
+                process_loop(&operation_sender, &operation_receiver,
+                    &shutdown_receiver, &data_directory_clone);
             });
 
             self.join_handles.push(join_handle);
@@ -103,165 +72,55 @@ impl BlockProcessor {
     }
 }
 
-fn index_block(mut block_op: BlockOperation,
-        sender: &Sender<BlockOperation>) -> Result<(), NahError> {
-    let now = SystemTime::now();
-    let mut geohashes: BTreeMap<String, Vec<(usize, usize)>> =
-        BTreeMap::new();
-    let (mut min_timestamp, mut max_timestamp) =
-        (std::u64::MAX, std::u64::MIN);
-
-    let mut start_index;
-    let mut end_index = 0;
-    let mut delimiter_indices = Vec::new();
-    let mut feature_count = 0;
-
-    while end_index < block_op.data.len() - 1 {
-        // initialize iteration variables
-        start_index = end_index;
-        delimiter_indices.clear();
-
-        // compute observation boundaries
-        while end_index < block_op.data.len() - 1 {
-            end_index += 1;
-            match block_op.data[end_index] {
-                44 => delimiter_indices.push(end_index - start_index),
-                10 => break, // NEWLINE
-                _ => (),
-            }
-        }
-
-        if block_op.data[end_index] == 10 {
-            end_index += 1; // if currently on NEWLINE -> increment
-        }
-
-        // check if this is a valid observation
-        if feature_count == 0 && start_index == 0 {
-            continue; // first observation
-        } else if feature_count == 0 {
-            feature_count = delimiter_indices.len() + 1;
-        } else if delimiter_indices.len() + 1 != feature_count {
-            continue; // observations differing in feature counts
-        }
-
-        // process observation
-        let observation = &block_op.data[start_index..end_index];
-        match parse_metadata(observation, &delimiter_indices) {
-            Ok((geohash, timestamp)) => {
-                // index observation
-                let mut indices = geohashes.entry(geohash)
-                    .or_insert(Vec::new());
-                indices.push((start_index, end_index));
-
-                // process timestamps
-                if timestamp < min_timestamp {
-                    min_timestamp = timestamp;
+fn process_loop(operation_sender: &Sender<BlockOperation>,
+        operation_receiver: &Receiver<BlockOperation>,
+        shutdown_receiver: &Receiver<bool>, data_directory: &str) {
+    loop {
+        select! {
+            recv(operation_receiver) -> result => {
+                // read block operation
+                if let Err(e) = result {
+                    error!("recv block operation: {}", e);
+                    continue;
                 }
 
-                if timestamp > max_timestamp {
-                    max_timestamp = timestamp;
+                // process block operation
+                let mut block_op = result.unwrap();
+                let process_result = match block_op.operation {
+                    Operation::INDEX =>
+                        super::index_block(&mut block_op),
+                    Operation::WRITE => 
+                        super::write_block(&block_op, &data_directory),
+                    Operation::TRANSFER =>
+                        super::transfer_block(&block_op),
+                };
+
+                // check for error
+                if let Err(e) = process_result {
+                    error!("processing block: {}", e);
+                    continue;
+                }
+
+                // send block operation to next stage
+                let send_result = match block_op.operation {
+                    Operation::INDEX => {
+                        block_op.operation = Operation::WRITE;
+                        operation_sender.send(block_op)
+                    },
+                    Operation::WRITE => {
+                        block_op.operation = Operation::TRANSFER;
+                        operation_sender.send(block_op)
+                    },
+                    Operation::TRANSFER => Ok(()),
+                };
+
+                // check for error
+                if let Err(e) = send_result {
+                    error!("sending processed block: {}", e);
+                    continue;
                 }
             },
-            Err(e) => warn!("parse observation metadata: {}", e),
+            recv(shutdown_receiver) -> _ => break,
         }
     }
-
-    let elapsed = now.elapsed().unwrap();
-    debug!("indexed block {} in {}.{}s", block_op.block_id,
-        elapsed.as_secs(), elapsed.subsec_millis());
-
-    // update block_op and write
-    block_op.operation = Operation::WRITE;
-    block_op.timestamps = Some((min_timestamp, max_timestamp));
-    block_op.index = Some(geohashes);
-    sender.send(block_op); // TODO - handle error
-
-    Ok(())
-}
-
-fn parse_metadata(data: &[u8], commas: &Vec<usize>)
-        -> Result<(String, u64), NahError> {
-    let latitude_str = String::from_utf8_lossy(&data[0..commas[0]]);
-    let longitude_str = String::from_utf8_lossy(&data[commas[0]+1..commas[1]]);
-    let timestamp_str = String::from_utf8_lossy(&data[commas[2]+1..commas[3]-2]);
-
-    let latitude = latitude_str.parse::<f32>()?;
-    let longitude = longitude_str.parse::<f32>()?;
-    let timestamp = timestamp_str.parse::<u64>()?;
-
-    let geohash = geohash::encode_16(latitude, longitude, 4)?;
-    Ok((geohash, timestamp))
-}
-
-fn write_block(mut block_op: BlockOperation, 
-        sender: &Sender<BlockOperation>, 
-        data_directory: &str) -> Result<(), NahError> {
-    let now = SystemTime::now();
-
-    // write block and compute block metadata
-    let mut file = File::create(format!("{}/blk_{}", 
-        data_directory, block_op.block_id))?;
-    let mut buf_writer = BufWriter::new(file);
-
-    let mut bm_proto = BlockMetadataProto::default();
-    bm_proto.block_id = block_op.block_id;
-    if let Some(geohashes) = &block_op.index {
-        // write indexed data
-        let mut geohash_indices = Vec::new();
-        let mut current_index = 0;
-        for (geohash, indices) in geohashes {
-            let mut gi_proto = GeohashIndexProto::default();
-            gi_proto.geohash = geohash.to_string();
-            gi_proto.start_index = current_index as u32;
-
-            for (start_index, end_index) in indices {
-                buf_writer.write_all(
-                    &block_op.data[*start_index..*end_index])?;
-                current_index += end_index - start_index;
-            }
-
-            gi_proto.end_index = current_index as u32;
-            geohash_indices.push(gi_proto);
-        }
-
-        let mut bi_proto = BlockIndexProto::default();
-        bi_proto.geohash_indices = geohash_indices;
-
-        if let Some((start_timestamp, end_timestamp)) = block_op.timestamps {
-            bi_proto.start_timestamp = start_timestamp;
-            bi_proto.end_timestamp = end_timestamp;
-        }
-
-        bm_proto.length = current_index as u64;
-        bm_proto.index = Some(bi_proto);
-    } else {
-        // write data
-        buf_writer.write_all(&block_op.data)?;
-        
-        bm_proto.length = block_op.data.len() as u64;
-    }
-
-    // write block metadata
-    let mut buf = Vec::new();
-    bm_proto.encode_length_delimited(&mut buf);
-
-    let mut meta_file = File::create(format!("{}/blk_{}.meta", 
-        data_directory, block_op.block_id))?;
-    let mut meta_buf_writer = BufWriter::new(meta_file);
-    meta_buf_writer.write_all(&buf)?;
-
-    let elapsed = now.elapsed().unwrap();
-    debug!("wrote block {} in {}.{}s", block_op.block_id,
-        elapsed.as_secs(), elapsed.subsec_millis());
-
-    // update block_op and transfer
-    block_op.operation = Operation::TRANSFER;
-    sender.send(block_op); // TODO - handle error
-
-    Ok(())
-}
-
-fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
-    println!("TODO - TRANSFER BLOCK: {}", block_op.block_id);
-    Ok(())
 }
