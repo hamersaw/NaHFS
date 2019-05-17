@@ -12,9 +12,6 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 - persist system on disk
 - replicate blocks
 #### datanode
-- implement read_block(id: &u64) to block mod (to use in protocol/namenode.rs)
-- integrate BlockOutputStream into protocol/transfer.rs
-
 - handle data which doesn't fall on boundaries (currently removing first and last observations)
 - send IndexReportProto with "com.bushpath.nahfs.protocol.DatanodeProtocol";
 - bound BlockProcessor channels to alleviate memory usage

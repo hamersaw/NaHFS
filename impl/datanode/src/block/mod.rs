@@ -9,7 +9,8 @@ use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto};
 
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufWriter, Read, SeekFrom, Write};
+use std::io::prelude::*;
 use std::time::SystemTime;
 
 pub enum Operation {
@@ -126,6 +127,24 @@ fn parse_metadata(data: &[u8], commas: &Vec<usize>)
     Ok((geohash, timestamp))
 }
 
+fn read_block(block_id: u64, offset: u64, data_directory: &str,
+        buf: &mut [u8]) -> Result<(), NahError> {
+    // open file
+    let mut file = File::open(&format!("{}/blk_{}",
+        data_directory, block_id))?;
+    file.seek(SeekFrom::Start(offset));
+
+    // read contents
+    file.read_exact(buf)?;
+
+    Ok(())
+}
+
+fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
+    println!("TODO - TRANSFER BLOCK: {}", block_op.block_id);
+    Ok(())
+}
+
 fn write_block(block_op: &BlockOperation,
         data_directory: &str) -> Result<(), NahError> {
     let now = SystemTime::now();
@@ -186,10 +205,5 @@ fn write_block(block_op: &BlockOperation,
     debug!("wrote block {} in {}.{}s", block_op.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
-    Ok(())
-}
-
-fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
-    println!("TODO - TRANSFER BLOCK: {}", block_op.block_id);
     Ok(())
 }

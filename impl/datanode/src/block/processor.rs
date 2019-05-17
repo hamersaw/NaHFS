@@ -39,6 +39,11 @@ impl BlockProcessor {
         self.operation_channel.0.send(block_op)
     }
 
+    pub fn read(&self, block_id: u64, offset: u64,
+            buf: &mut [u8]) -> Result<(), NahError> {
+        super::read_block(block_id, offset, &self.data_directory, buf)
+    }
+
     pub fn start(&mut self) -> Result<(), NahError> {
         for _ in 0..self.thread_count {
             // clone variables
