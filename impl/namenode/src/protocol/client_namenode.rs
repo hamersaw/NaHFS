@@ -96,7 +96,7 @@ impl ClientNamenodeProtocol {
         response.encode_length_delimited(resp_buf).unwrap();
     }
 
-    fn create(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn create(&self, user: &str, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
         let request = CreateRequestProto
             ::decode_length_delimited(req_buf).unwrap();
         let mut response = CreateResponseProto::default();
@@ -105,7 +105,7 @@ impl ClientNamenodeProtocol {
         debug!("create({:?})", request);
         let mut file_store = self.file_store.write().unwrap();
         file_store.create(&request.src, request.masked.perm,
-            "TODO", "TODO", request.replication, request.block_size);
+            user, user, request.replication, request.block_size);
 
         // get file
         if let Some(file) = file_store.get_file(&request.src) {
@@ -209,7 +209,7 @@ impl ClientNamenodeProtocol {
         response.encode_length_delimited(resp_buf).unwrap();
     }
 
-    fn mkdirs(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn mkdirs(&self, user: &str, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
         let request = MkdirsRequestProto
             ::decode_length_delimited(req_buf).unwrap();
         let mut response = MkdirsResponseProto::default();
@@ -218,7 +218,7 @@ impl ClientNamenodeProtocol {
         debug!("mkdirs({:?})", request);
         let mut file_store = self.file_store.write().unwrap();
         file_store.mkdirs(&request.src, request.masked.perm,
-            "TODO", "TODO", request.create_parent);
+            user, user, request.create_parent);
 
         response.result = true;
         response.encode_length_delimited(resp_buf).unwrap();
@@ -253,17 +253,22 @@ impl ClientNamenodeProtocol {
 }
 
 impl Protocol for ClientNamenodeProtocol {
-    fn process(&self, method: &str, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) {
+    fn process(&self, user: &Option<String>, method: &str,
+            req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let user = match user {
+            Some(user) => user,
+            None => "default",
+        };
+
         match method {
             "addBlock" => self.add_block(req_buf, resp_buf),
             "complete" => self.complete(req_buf, resp_buf),
-            "create" => self.create(req_buf, resp_buf),
+            "create" => self.create(user, req_buf, resp_buf),
             "getBlockLocations" => self.get_block_locations(req_buf, resp_buf),
             "getFileInfo" => self.get_file_info(req_buf, resp_buf),
             "getListing" => self.get_listing(req_buf, resp_buf),
             "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf),
-            "mkdirs" => self.mkdirs(req_buf, resp_buf),
+            "mkdirs" => self.mkdirs(user, req_buf, resp_buf),
             "rename" => self.rename(req_buf, resp_buf),
             "setStoragePolicy" => self.set_storage_policy(req_buf, resp_buf),
             _ => error!("unimplemented method '{}'", method),

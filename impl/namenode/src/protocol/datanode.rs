@@ -101,8 +101,8 @@ impl DatanodeProtocol {
 }
 
 impl Protocol for DatanodeProtocol {
-    fn process(&self, method: &str, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) {
+    fn process(&self, user: &Option<String>, method: &str,
+            req_buf: &[u8], resp_buf: &mut Vec<u8>) {
         match method {
             "blockReport" => self.block_report(req_buf, resp_buf),
             "heartbeat" => self.heartbeat(req_buf, resp_buf),
