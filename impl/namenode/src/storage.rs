@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 
 pub struct Storage {
-    id: String,
-    states: Vec<StorageState>,
+    pub id: String,
+    pub states: Vec<StorageState>,
 }
 
 pub struct StorageState {
-    capacity: Option<u64>,
-    dfs_used: Option<u64>,
-    remaining: Option<u64>,
-    update_timestamp: u64,
+    pub capacity: Option<u64>,
+    pub dfs_used: Option<u64>,
+    pub remaining: Option<u64>,
+    pub block_pool_used: Option<u64>,
+    pub non_dfs_used: Option<u64>,
+    pub update_timestamp: u64,
 }
 
 pub struct StorageStore {
@@ -23,8 +25,13 @@ impl StorageStore {
         }
     }
 
+    pub fn get_storage(&self, id: &str) -> Option<&Storage> {
+        Some(self.map.get(id).unwrap())
+    }
+
     pub fn update(&mut self, id: &str, capacity: Option<u64>,
             dfs_used: Option<u64>, remaining: Option<u64>,
+            block_pool_used: Option<u64>, non_dfs_used: Option<u64>,
             update_timestamp: u64) {
         // get storage, creating if it doesn't exist
         let mut storage = self.map.entry(id.to_string()).or_insert(
@@ -38,13 +45,15 @@ impl StorageStore {
             capacity: capacity,
             dfs_used: dfs_used,
             remaining: remaining,
+            block_pool_used: block_pool_used,
+            non_dfs_used: non_dfs_used,
             update_timestamp: update_timestamp,
         };
 
         storage.states.push(state);
 
         // remove old states
-        while storage.states.len() > 10 {
+        while storage.states.len() > 10 { // TODO - parameterize
             storage.states.remove(0);
         }
     }

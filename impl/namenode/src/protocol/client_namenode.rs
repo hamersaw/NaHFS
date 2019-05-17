@@ -1,9 +1,11 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
+use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
 
+use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore};
+use crate::storage::StorageStore;
 
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -13,16 +15,23 @@ static INDEXED_MASK: u64 = 9223372032559808512;
 static NON_INDEXED_MASK: u64 = 9223372036854775807;
 
 pub struct ClientNamenodeProtocol {
+    block_store: Arc<RwLock<BlockStore>>,
     datanode_store: Arc<RwLock<DatanodeStore>>,
     file_store: Arc<RwLock<FileStore>>,
+    storage_store: Arc<RwLock<StorageStore>>,
 }
 
 impl ClientNamenodeProtocol {
-    pub fn new(datanode_store: Arc<RwLock<DatanodeStore>>,
-            file_store: Arc<RwLock<FileStore>>) -> ClientNamenodeProtocol {
+    pub fn new(block_store: Arc<RwLock<BlockStore>>, 
+            datanode_store: Arc<RwLock<DatanodeStore>>,
+            file_store: Arc<RwLock<FileStore>>,
+            storage_store: Arc<RwLock<StorageStore>>)
+            -> ClientNamenodeProtocol {
         ClientNamenodeProtocol {
+            block_store: block_store,
             datanode_store: datanode_store,
             file_store: file_store,
+            storage_store: storage_store,
         }
     }
 
@@ -52,7 +61,8 @@ impl ClientNamenodeProtocol {
 
             for id in ids {
                 let datanode = datanode_store.get_datanode(id).unwrap();
-                lb_proto.locs.push(super::to_datanode_info_proto(datanode));
+                lb_proto.locs.push(super
+                    ::to_datanode_info_proto(datanode, None));
             }
 
             // populate ExtendedBlockProto
@@ -102,6 +112,29 @@ impl ClientNamenodeProtocol {
             response.fs = Some(crate::protocol
                 ::to_hdfs_file_status_proto(file, &file_store));
         }
+
+        response.encode_length_delimited(resp_buf).unwrap();
+    }
+
+    fn get_block_locations(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+        let request = GetBlockLocationsRequestProto
+            ::decode_length_delimited(req_buf).unwrap();
+        let mut response = GetBlockLocationsResponseProto::default();
+
+        // get block locations
+        debug!("getBlockLocations({:?})", request);
+        let file_store = self.file_store.read().unwrap();
+        if let Some(file) = file_store.get_file(&request.src) {
+            let block_store = self.block_store.read().unwrap();
+            let datanode_store = self.datanode_store.read().unwrap();
+            let storage_store = self.storage_store.read().unwrap();
+
+            response.locations = Some(crate::protocol
+                ::to_located_blocks_proto(file, &block_store,
+                    &datanode_store, &storage_store));
+        }
+
+        println!("RETURNING: {:?}", response);
 
         response.encode_length_delimited(resp_buf).unwrap();
     }
@@ -226,6 +259,7 @@ impl Protocol for ClientNamenodeProtocol {
             "addBlock" => self.add_block(req_buf, resp_buf),
             "complete" => self.complete(req_buf, resp_buf),
             "create" => self.create(req_buf, resp_buf),
+            "getBlockLocations" => self.get_block_locations(req_buf, resp_buf),
             "getFileInfo" => self.get_file_info(req_buf, resp_buf),
             "getListing" => self.get_listing(req_buf, resp_buf),
             "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf),

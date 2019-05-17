@@ -96,7 +96,7 @@ impl DatanodeStore {
             datanode.states.push(state);
 
             // remove old states
-            while datanode.states.len() > 10 {
+            while datanode.states.len() > 10 { // TODO - parameterize
                 datanode.states.remove(0);
             }
         }

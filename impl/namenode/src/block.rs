@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 pub struct Block {
-    id: u64,
-    generation_stamp: u64,
-    length: u64,
-    locations: Vec<String>,
-    storage_ids: Vec<String>,
+    pub id: u64,
+    pub generation_stamp: u64,
+    pub length: u64,
+    pub locations: Vec<String>,
+    pub storage_ids: Vec<String>,
 }
 
 pub struct BlockStore {
@@ -17,6 +17,10 @@ impl BlockStore {
         BlockStore {
             map: HashMap::new(),
         }
+    }
+
+    pub fn get_block(&self, id: &u64) -> Option<&Block> {
+        Some(self.map.get(id).unwrap())
     }
 
     pub fn update(&mut self, id: u64, generation_stamp: u64,

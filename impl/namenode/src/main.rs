@@ -63,7 +63,8 @@ fn main() {
     let mut protocols = Protocols::new();
 
     let client_namenode_protocol = ClientNamenodeProtocol::new(
-        datanode_store.clone(), file_store.clone());
+        block_store.clone(), datanode_store.clone(),
+        file_store.clone(), storage_store.clone());
     protocols.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
         Box::new(client_namenode_protocol));
 

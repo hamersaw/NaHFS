@@ -75,7 +75,8 @@ impl DatanodeProtocol {
         for sr_proto in request.reports {
             let storage_id = &sr_proto.storage_uuid;
             storage_store.update(storage_id, sr_proto.capacity,
-                sr_proto.dfs_used, sr_proto.remaining, time);
+                sr_proto.dfs_used, sr_proto.remaining,
+                sr_proto.block_pool_used, sr_proto.non_dfs_used, time);
 
             datanode_store.add_storage(datanode_id, storage_id);
         }

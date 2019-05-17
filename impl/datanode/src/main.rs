@@ -69,10 +69,8 @@ fn main() {
 
     // initialize NamenodeProtocol
     let dr_proto = protocol::to_datanode_registration_proto(&config);
-    let mut namenode_protocol= NamenodeProtocol::new(
-        dr_proto, config.block_report_ms, config.heartbeat_ms,
-        &config.data_directory, &config.namenode_ip_address,
-        config.namenode_port);
+    let ds_proto = protocol::to_datanode_storage_proto(&config);
+    let mut namenode_protocol= NamenodeProtocol::new(config);
     info!("initialized namenode protocol");
 
     // start NamenodeProtocol
@@ -88,10 +86,12 @@ fn main() {
     std::thread::park();
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct Config {
     #[structopt(name="ID")]
     id: String,
+    #[structopt(name="STORAGE_ID")]
+    storage_id: String,
     #[structopt(name="DATA_DIR")]
     data_directory: String,
     #[structopt(short="i", long="ip_address", default_value="127.0.0.1")]

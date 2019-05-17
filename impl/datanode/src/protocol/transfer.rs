@@ -11,7 +11,9 @@ use std::net::TcpStream;
 use std::sync::RwLock;
 
 static PROTOCOL_VERSION: u16 = 28;
-static FIRST_BIT: u64 = 9223372036854775808;
+static FIRST_BIT_U64: u64 = 9223372036854775808;
+static FIRST_BIT_U8: u8 = 128;
+static MASK_U8: u8 = 127;
 
 pub struct TransferStreamHandler {
     processor: RwLock<BlockProcessor>,
@@ -39,12 +41,11 @@ impl StreamHandler for TransferStreamHandler {
 
             // calculate leb128 encoded op proto length
             let mut length = 0;
-            for i in 0..8 {
+            for i in 0.. {
                 let byte = stream.read_u8()?;
-                let delta = ((byte << 1 >> 1) as u64) << (i * 7);
-                length += delta;
+                length += ((byte & MASK_U8) as u64) << (i * 7);
 
-                if byte < 64 {
+                if byte & FIRST_BIT_U8 != FIRST_BIT_U8 {
                     break;
                 }
             }
@@ -87,7 +88,7 @@ impl StreamHandler for TransferStreamHandler {
  
                     // parse block_id
                     let processor = self.processor.read().unwrap();
-                    if block_id & FIRST_BIT == FIRST_BIT {
+                    if block_id & FIRST_BIT_U64 == FIRST_BIT_U64 {
                         processor.add_index(block_id, data);
                     } else {
                         processor.add_write(block_id, data);

@@ -10,6 +10,7 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 
 ## TODO
 - persist system on disk
+- replicate blocks
 #### datanode
 - handle data which doesn't fall on boundaries (currently removing first and last observations)
 - populate heartbeat messages
@@ -17,7 +18,8 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 - bound BlockProcessor channels to alleviate memory usage
 - implement notion of "storage" - at least set storageId
 #### namenode
+- persist file system on disk (think about!)
 - pass IpcConnectionContext(user, etc) to populate owner/group on file creation
 - compute file length in HdfsFileStatusProto creation
-- parameterize unnecessarily hardcoded values!
-- implement getBlockLocations()!
+- parameterize unnecessarily hardcoded values
+- implement functionality for file reads (getBlockLocations, etc)

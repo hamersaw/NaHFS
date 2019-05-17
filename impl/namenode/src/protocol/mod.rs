@@ -1,4 +1,4 @@
-use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeInfoProto, FsPermissionProto, HdfsFileStatusProto, LocatedBlockProto};
+use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeInfoProto, FsPermissionProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
 
 use crate::block::{Block, BlockStore};
 use crate::datanode::{Datanode, DatanodeStore};
@@ -11,9 +11,12 @@ mod datanode;
 pub use client_namenode::ClientNamenodeProtocol;
 pub use datanode::DatanodeProtocol;
 
-fn to_datanode_info_proto(datanode: &Datanode) -> DatanodeInfoProto {
+fn to_datanode_info_proto(datanode: &Datanode,
+        storage_store: Option<&StorageStore>) -> DatanodeInfoProto {
     // iniitalize DatanodeInfoProto
     let mut din_proto = DatanodeInfoProto::default();
+    din_proto.admin_state = Some(0); // NORMAL
+    din_proto.location = Some("/default-rack".to_string());
 
     // populate DatanodeIdProto
     let mut di_proto = &mut din_proto.id;
@@ -21,15 +24,39 @@ fn to_datanode_info_proto(datanode: &Datanode) -> DatanodeInfoProto {
     di_proto.datanode_uuid = datanode.id.clone();
     di_proto.xfer_port = datanode.xfer_port;
 
-    // TODO - compute storage values
+    // populate storage state variables
+    let (mut capacity, mut dfs_used, mut remaining,
+         mut block_pool_used, mut non_dfs_used) = (0, 0, 0, 0, 0);
+    if let Some(storage_store) = storage_store {
+        for storage_id in &datanode.storage_ids {
+            if let Some(storage) =
+                    storage_store.get_storage(storage_id) {
+                if let Some(state) = storage.states.last() {
+                    capacity += state.capacity.unwrap_or(0);
+                    dfs_used += state.dfs_used.unwrap_or(0);
+                    remaining += state.remaining.unwrap_or(0);
+                    block_pool_used += state.block_pool_used.unwrap_or(0);
+                    non_dfs_used += state.non_dfs_used.unwrap_or(0);
+                }
+            }
+        }
+    }
 
-    // populate state variables
+    din_proto.capacity = Some(capacity);
+    din_proto.dfs_used = Some(dfs_used);
+    din_proto.remaining = Some(remaining);
+    din_proto.block_pool_used = Some(block_pool_used);
+    din_proto.non_dfs_used = Some(non_dfs_used);
+
+    // populate datanode state variables
     if let Some(state) = datanode.states.last() {
         din_proto.cache_capacity = state.cache_capacity;
         din_proto.cache_used = state.cache_used;
         din_proto.last_update = Some(state.update_timestamp);
         din_proto.xceiver_count = state.xceiver_count;
     }
+
+    // TODO - last update should be max of datanode state and storage state
     
     din_proto
 }
@@ -67,6 +94,49 @@ fn to_hdfs_file_status_proto(file: &File,
     hfs_proto
 }
 
-fn to_located_block_proto(block: &Block) -> LocatedBlockProto {
-    unimplemented!();
+fn to_located_blocks_proto(file: &File, block_store: &BlockStore,
+        datanode_store: &DatanodeStore, storage_store: &StorageStore)
+        -> LocatedBlocksProto {
+    let mut lbs_proto = LocatedBlocksProto::default();
+    let blocks = &mut lbs_proto.blocks;
+    let mut length = 0;
+
+    for block_id in &file.blocks {
+        if let Some(block) = block_store.get_block(block_id) {
+            let mut lb_proto = LocatedBlockProto::default();
+            let eb_proto = &mut lb_proto.b;
+
+            // populate ExtendedBlockProto
+            eb_proto.block_id = block.id;
+            eb_proto.num_bytes = Some(block.length);
+
+            // populate LocatedBlockProto
+            lb_proto.offset = length;
+            lb_proto.corrupt = false;
+
+            // populate locs
+            for datanode_id in &block.locations {
+                if let Some(datanode) =
+                        datanode_store.get_datanode(datanode_id) {
+                    lb_proto.locs.push(to_datanode_info_proto(
+                        datanode, Some(storage_store)));
+                }
+            }
+
+            // populate storages
+            for storage_id in &block.storage_ids {
+                lb_proto.storage_types.push(0);
+                lb_proto.storage_i_ds.push(storage_id.to_string());
+                lb_proto.is_cached.push(false);
+            }
+
+            blocks.push(lb_proto);
+            length += block.length;
+        }
+    }
+
+    lbs_proto.file_length = length;
+    lbs_proto.under_construction = false;
+    lbs_proto.is_last_block_complete = true; // TODO - set correctly
+    lbs_proto
 }

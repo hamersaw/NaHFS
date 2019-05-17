@@ -4,10 +4,18 @@ mod transfer;
 pub use namenode::NamenodeProtocol;
 pub use transfer::TransferStreamHandler;
 
-use hdfs_protos::hadoop::hdfs::{BlockKeyProto, DatanodeIdProto, ExportedBlockKeysProto, StorageInfoProto};
+use hdfs_protos::hadoop::hdfs::{BlockKeyProto, DatanodeIdProto, DatanodeStorageProto, ExportedBlockKeysProto, StorageInfoProto};
 use hdfs_protos::hadoop::hdfs::datanode::DatanodeRegistrationProto;
 
 use crate::Config;
+
+pub fn to_datanode_storage_proto(config: &Config)
+        -> DatanodeStorageProto {
+    let mut ds_proto = DatanodeStorageProto::default();
+    ds_proto.storage_uuid = config.storage_id.to_owned();
+
+    ds_proto
+}
 
 pub fn to_datanode_registration_proto(config: &Config)
         -> DatanodeRegistrationProto {
