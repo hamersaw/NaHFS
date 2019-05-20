@@ -61,16 +61,22 @@ fn to_datanode_info_proto(datanode: &Datanode,
     din_proto
 }
 
-fn to_hdfs_file_status_proto(file: &File,
+fn to_hdfs_file_status_proto(file: &File, block_store: &BlockStore,
         file_store: &FileStore) -> HdfsFileStatusProto {
     let mut hfs_proto = HdfsFileStatusProto::default();
     hfs_proto.file_type = file.file_type;
     hfs_proto.path = file_store.compute_path(file.inode).into_bytes();
-    //hfs_proto.length = 0; // TODO - compute length from blocks
 
-    let mut fp_proto = FsPermissionProto::default();
+    // iterate over blocks to compute file length
+    hfs_proto.length = 0;
+    for block_id in file.blocks.iter() {
+        if let Some(block) = block_store.get_block(block_id) {
+            hfs_proto.length += block.length;
+        }
+    }
+
+    let fp_proto = &mut hfs_proto.permission;
     fp_proto.perm = file.permissions;
-    hfs_proto.permission = fp_proto;
 
     hfs_proto.owner = file.owner.clone();
     hfs_proto.group = file.group.clone();
@@ -99,8 +105,8 @@ fn to_located_blocks_proto(file: &File, block_store: &BlockStore,
         -> LocatedBlocksProto {
     let mut lbs_proto = LocatedBlocksProto::default();
     let blocks = &mut lbs_proto.blocks;
-    let mut length = 0;
 
+    let (mut length, mut complete) = (0, true);
     for block_id in &file.blocks {
         if let Some(block) = block_store.get_block(block_id) {
             let mut lb_proto = LocatedBlockProto::default();
@@ -132,11 +138,14 @@ fn to_located_blocks_proto(file: &File, block_store: &BlockStore,
 
             blocks.push(lb_proto);
             length += block.length;
+        } else {
+            // block_id not found -> file not complete
+            complete = false;
         }
     }
 
     lbs_proto.file_length = length;
-    lbs_proto.under_construction = false;
-    lbs_proto.is_last_block_complete = true; // TODO - set correctly
+    lbs_proto.under_construction = !complete;
+    lbs_proto.is_last_block_complete = complete;
     lbs_proto
 }

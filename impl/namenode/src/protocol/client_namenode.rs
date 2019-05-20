@@ -109,8 +109,9 @@ impl ClientNamenodeProtocol {
 
         // get file
         if let Some(file) = file_store.get_file(&request.src) {
+            let block_store = self.block_store.read().unwrap();
             response.fs = Some(crate::protocol
-                ::to_hdfs_file_status_proto(file, &file_store));
+                ::to_hdfs_file_status_proto(file, &block_store, &file_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -148,8 +149,9 @@ impl ClientNamenodeProtocol {
         debug!("getFileInfo({:?})", request);
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
+            let block_store = self.block_store.read().unwrap();
             response.fs = Some(crate::protocol
-                ::to_hdfs_file_status_proto(file, &file_store));
+                ::to_hdfs_file_status_proto(file, &block_store, &file_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -165,6 +167,8 @@ impl ClientNamenodeProtocol {
         debug!("getListing({:?})", request);
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
+            let block_store = self.block_store.read().unwrap();
+
             let mut partial_listing = Vec::new();
             match file.file_type {
                 1 => {
@@ -172,11 +176,12 @@ impl ClientNamenodeProtocol {
                             .get_children(file.inode).unwrap() {
                         partial_listing.push(crate::protocol
                             ::to_hdfs_file_status_proto(child_file,
-                                &file_store));
+                                &block_store, &file_store));
                     }
                 },
                 2 => partial_listing.push(crate::protocol
-                    ::to_hdfs_file_status_proto(file, &file_store)),
+                    ::to_hdfs_file_status_proto(file,
+                        &block_store, &file_store)),
                 _ => unimplemented!(),
             }
 
