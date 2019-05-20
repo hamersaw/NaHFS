@@ -4,7 +4,7 @@ use hdfs_protos::hadoop::hdfs::{DatanodeStorageProto, StorageReportProto};
 use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, DatanodeRegistrationProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
 use prost::Message;
 use shared::NahError;
-use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto};
+use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto, IndexReportResponseProto, IndexReportRequestProto};
 
 use crate::Config;
 
@@ -49,8 +49,10 @@ impl NamenodeProtocol {
         let shutdown_receiver = self.shutdown_channel.1.clone();
         let block_report_tick = crossbeam_channel
             ::tick(Duration::from_millis(self.config.block_report_ms));
-        let heartbeat_tick =  crossbeam_channel
+        let heartbeat_tick = crossbeam_channel
             ::tick(Duration::from_millis(self.config.heartbeat_ms));
+        let index_tick = crossbeam_channel
+            ::tick(Duration::from_millis(self.config.index_report_ms));
 
         // clone variables
         let config_clone = self.config.clone();
@@ -67,6 +69,11 @@ impl NamenodeProtocol {
                     recv(heartbeat_tick) -> _ => {
                         if let Err(e) = heartbeat(&config_clone) {
                             warn!("heartbeat failed: {}", e);
+                        }
+                    },
+                    recv(index_tick) -> _ => {
+                        if let Err(e) = index_report(&config_clone) {
+                            warn!("index report failed: {}", e);
                         }
                     },
                     recv(shutdown_receiver) -> _ => break,
@@ -195,6 +202,49 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
     client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "heartbeat", hr_proto)?;
+
+    // TODO - read response
+
+    Ok(())
+}
+
+fn index_report(config: &Config) -> Result<(), NahError> {
+    // initialize IndexReportRequestProto
+    let mut irr_proto = IndexReportRequestProto::default();
+    irr_proto.datanode_id = config.id.clone();
+    let block_ids = &mut irr_proto.block_ids;
+    let indices = &mut irr_proto.block_indices;
+
+    // read block metadata files
+    let metadata_glob = format!("{}/*.meta", config.data_directory);
+    let mut buf = Vec::new();
+    for entry in glob::glob(&metadata_glob)? {
+        // read file into buffer
+        buf.clear();
+        let mut file = File::open(entry?)?;
+        file.read_to_end(&mut buf)?;
+
+        // parse BlockMetadataProto
+        let bm_proto = BlockMetadataProto
+            ::decode_length_delimited(&buf)?;
+
+        // process block index metadata
+        if let Some(bi_proto) = bm_proto.index {
+            block_ids.push(bm_proto.block_id);
+            indices.push(bi_proto);
+        }
+    }
+
+    if block_ids.len() == 0 {
+        return Ok(());
+    }
+
+    trace!("writing IndexReportRequestProto to {}:{}",
+        config.namenode_ip_address, config.namenode_port);
+
+    // write IndexReportRequestProto 
+    let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
+    client.write_message("com.bushpath.nahfs.protocol.NahfsProtocol", "indexReport", irr_proto)?;
 
     // TODO - read response
 

@@ -115,4 +115,6 @@ pub struct Config {
     block_report_ms: u64,
     #[structopt(short="h", long="heartbeat", default_value="2000")]
     heartbeat_ms: u64,
+    #[structopt(short="r", long="index_report", default_value="2000")]
+    index_report_ms: u64,
 }

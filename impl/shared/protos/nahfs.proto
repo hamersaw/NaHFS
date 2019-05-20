@@ -23,7 +23,7 @@ message GeohashIndexProto {
 
 message IndexReportRequestProto {
     required string datanodeId = 1;
-    repeated uint64 blockId = 2;
+    repeated uint64 blockIds = 2;
     repeated BlockIndexProto blockIndices = 3;
 }
 

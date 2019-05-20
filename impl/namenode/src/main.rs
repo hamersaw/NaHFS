@@ -15,7 +15,7 @@ mod storage;
 use block::BlockStore;
 use datanode::DatanodeStore;
 use file::FileStore;
-use protocol::{ClientNamenodeProtocol, DatanodeProtocol};
+use protocol::{ClientNamenodeProtocol, DatanodeProtocol, NahfsProtocol};
 use storage::StorageStore;
 
 use std::net::TcpListener;
@@ -72,6 +72,10 @@ fn main() {
         block_store.clone(), datanode_store.clone(), storage_store.clone());
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
         Box::new(datanode_protocol));
+
+    let nahfs_protocol = NahfsProtocol::new();
+    protocols.register("com.bushpath.nahfs.protocol.NahfsProtocol",
+        Box::new(nahfs_protocol));
  
     // start server
     if let Err(e) =

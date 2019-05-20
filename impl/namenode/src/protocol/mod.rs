@@ -7,9 +7,11 @@ use crate::storage::StorageStore;
 
 mod client_namenode;
 mod datanode;
+mod nahfs;
 
 pub use client_namenode::ClientNamenodeProtocol;
 pub use datanode::DatanodeProtocol;
+pub use nahfs::NahfsProtocol;
 
 fn to_datanode_info_proto(datanode: &Datanode,
         storage_store: Option<&StorageStore>) -> DatanodeInfoProto {
