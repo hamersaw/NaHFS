@@ -5,7 +5,7 @@ use shared::NahError;
 mod processor;
 pub use processor::BlockProcessor;
 
-use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto};
+use shared::protos::{BlockIndexProto, BlockMetadataProto};
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -156,14 +156,19 @@ fn write_block(block_op: &BlockOperation,
 
     let mut bm_proto = BlockMetadataProto::default();
     bm_proto.block_id = block_op.block_id;
-    if let Some(geohashes) = &block_op.index {
+
+    if let (Some(block_index), Some((start_timestamp, end_timestamp)))
+            = (&block_op.index, block_op.timestamps) {
         // write indexed data
-        let mut geohash_indices = Vec::new();
+        let mut bi_proto = BlockIndexProto::default();
+        let geohashes = &mut bi_proto.geohashes;
+        let start_indices = &mut bi_proto.start_indices;
+        let end_indices = &mut bi_proto.end_indices;
+
         let mut current_index = 0;
-        for (geohash, indices) in geohashes {
-            let mut gi_proto = GeohashIndexProto::default();
-            gi_proto.geohash = geohash.to_string();
-            gi_proto.start_index = current_index as u32;
+        for (geohash, indices) in block_index {
+            geohashes.push(geohash.to_string());
+            start_indices.push(current_index as u32); 
 
             for (start_index, end_index) in indices {
                 buf_writer.write_all(
@@ -171,24 +176,18 @@ fn write_block(block_op: &BlockOperation,
                 current_index += end_index - start_index;
             }
 
-            gi_proto.end_index = current_index as u32;
-            geohash_indices.push(gi_proto);
+            end_indices.push(current_index as u32);
         }
 
-        let mut bi_proto = BlockIndexProto::default();
-        bi_proto.geohash_indices = geohash_indices;
-
-        if let Some((start_timestamp, end_timestamp)) = block_op.timestamps {
-            bi_proto.start_timestamp = start_timestamp;
-            bi_proto.end_timestamp = end_timestamp;
-        }
+        bi_proto.start_timestamp = start_timestamp;
+        bi_proto.end_timestamp = end_timestamp;
 
         bm_proto.length = current_index as u64;
         bm_proto.index = Some(bi_proto);
     } else {
         // write data
         buf_writer.write_all(&block_op.data)?;
-        
+
         bm_proto.length = block_op.data.len() as u64;
     }
 

@@ -4,7 +4,7 @@ use hdfs_protos::hadoop::hdfs::{DatanodeStorageProto, StorageReportProto};
 use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, DatanodeRegistrationProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
 use prost::Message;
 use shared::NahError;
-use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto, IndexReportResponseProto, IndexReportRequestProto};
+use shared::protos::{BlockIndexProto, BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
 
 use crate::Config;
 

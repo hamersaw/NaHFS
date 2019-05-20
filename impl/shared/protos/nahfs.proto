@@ -12,13 +12,9 @@ message BlockMetadataProto {
 message BlockIndexProto {
     required uint64 startTimestamp = 2;
     required uint64 endTimestamp = 3;
-    repeated GeohashIndexProto geohashIndices = 4;
-}
-
-message GeohashIndexProto {
-    required string geohash = 1;
-    required uint32 startIndex = 2;
-    required uint32 endIndex = 3;
+    repeated string geohashes = 4;
+    repeated uint32 startIndices = 5;
+    repeated uint32 endIndices = 6;
 }
 
 message IndexReportRequestProto {

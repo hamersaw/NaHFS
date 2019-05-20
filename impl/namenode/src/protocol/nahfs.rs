@@ -1,6 +1,6 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
-use shared::protos::{BlockIndexProto, BlockMetadataProto, GeohashIndexProto, IndexReportResponseProto, IndexReportRequestProto};
+use shared::protos::{BlockIndexProto, BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
 
 pub struct NahfsProtocol {
 }
