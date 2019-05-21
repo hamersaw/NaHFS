@@ -211,7 +211,6 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
 fn index_report(config: &Config) -> Result<(), NahError> {
     // initialize IndexReportRequestProto
     let mut irr_proto = IndexReportRequestProto::default();
-    irr_proto.datanode_id = config.id.clone();
     let block_ids = &mut irr_proto.block_ids;
     let indices = &mut irr_proto.block_indices;
 

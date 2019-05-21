@@ -9,12 +9,14 @@ use structopt::StructOpt;
 mod block;
 mod datanode;
 mod file;
+mod index;
 mod protocol;
 mod storage;
 
 use block::BlockStore;
 use datanode::DatanodeStore;
 use file::FileStore;
+use index::Index;
 use protocol::{ClientNamenodeProtocol, DatanodeProtocol, NahfsProtocol};
 use storage::StorageStore;
 
@@ -39,6 +41,10 @@ fn main() {
     // initialize FileStore
     let file_store = Arc::new(RwLock::new(FileStore::new()));
     info!("initialized file store");
+
+    // initialize Index
+    let index = Arc::new(RwLock::new(Index::new()));
+    info!("initialized index");
  
     // initialize StorageStore
     let storage_store = Arc::new(RwLock::new(StorageStore::new()));
@@ -73,7 +79,7 @@ fn main() {
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
         Box::new(datanode_protocol));
 
-    let nahfs_protocol = NahfsProtocol::new();
+    let nahfs_protocol = NahfsProtocol::new(index.clone());
     protocols.register("com.bushpath.nahfs.protocol.NahfsProtocol",
         Box::new(nahfs_protocol));
  

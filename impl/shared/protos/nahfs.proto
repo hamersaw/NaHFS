@@ -18,7 +18,6 @@ message BlockIndexProto {
 }
 
 message IndexReportRequestProto {
-    required string datanodeId = 1;
     repeated uint64 blockIds = 2;
     repeated BlockIndexProto blockIndices = 3;
 }
