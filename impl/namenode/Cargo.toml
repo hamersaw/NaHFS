@@ -12,7 +12,7 @@ hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
 hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }
 log = "0.4"
 prost = "0.5"
-radix_trie = "0.1"
+radix = { path = "../../../utilities-rs/radix" }
 rand = "0.6"
 shared = { path = "../shared" }
 structopt = "0.2"

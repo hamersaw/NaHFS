@@ -1,6 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
+use shared::NahError;
 
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
@@ -135,8 +136,6 @@ impl ClientNamenodeProtocol {
                     &datanode_store, &storage_store));
         }
 
-        println!("RETURNING: {:?}", response);
-
         response.encode_length_delimited(resp_buf).unwrap();
     }
 
@@ -147,8 +146,14 @@ impl ClientNamenodeProtocol {
 
         // get file
         debug!("getFileInfo({:?})", request);
+        // TODO - handle error
+        let (path, query) = parse_embedded_query(&request.src).unwrap();
+
+        println!("TODO - PATH:'{}' QUERY:'{:?}'", path, query);
+
         let file_store = self.file_store.read().unwrap();
-        if let Some(file) = file_store.get_file(&request.src) {
+        //if let Some(file) = file_store.get_file(&request.src) {
+        if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
             response.fs = Some(crate::protocol
                 ::to_hdfs_file_status_proto(file, &block_store, &file_store));
@@ -278,5 +283,16 @@ impl Protocol for ClientNamenodeProtocol {
             "setStoragePolicy" => self.set_storage_policy(req_buf, resp_buf),
             _ => error!("unimplemented method '{}'", method),
         }
+    }
+}
+
+fn parse_embedded_query(path: &str)
+        -> Result<(&str, Option<&str>), NahError> {
+    let fields: Vec<&str> = path.split("+").collect();
+
+    match fields.len() {
+        1 => Ok((fields[0], None)),
+        2 => Ok((fields[0], Some(fields[1]))),
+        _ => Err(NahError::from(format!("invalid embedded query path"))),
     }
 }
