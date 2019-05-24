@@ -1,6 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
+use radix::RadixQuery;
 use shared::NahError;
 
 use crate::block::BlockStore;
@@ -112,7 +113,8 @@ impl ClientNamenodeProtocol {
         if let Some(file) = file_store.get_file(&request.src) {
             let block_store = self.block_store.read().unwrap();
             response.fs = Some(crate::protocol
-                ::to_hdfs_file_status_proto(file, &block_store, &file_store));
+                ::to_hdfs_file_status_proto(file, &None,
+                    &block_store, &file_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -147,7 +149,8 @@ impl ClientNamenodeProtocol {
         // get file
         debug!("getFileInfo({:?})", request);
         // TODO - handle error
-        let (path, query) = parse_embedded_query(&request.src).unwrap();
+        let (path, query) =
+            parse_embedded_query_path(&request.src).unwrap();
 
         println!("TODO - PATH:'{}' QUERY:'{:?}'", path, query);
 
@@ -156,7 +159,8 @@ impl ClientNamenodeProtocol {
         if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
             response.fs = Some(crate::protocol
-                ::to_hdfs_file_status_proto(file, &block_store, &file_store));
+                ::to_hdfs_file_status_proto(file, &query,
+                    &block_store, &file_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -170,8 +174,11 @@ impl ClientNamenodeProtocol {
         // get listing
         // TODO - handle start_after, need_location
         debug!("getListing({:?})", request);
+        let (path, query) =
+            parse_embedded_query_path(&request.src).unwrap();
+
         let file_store = self.file_store.read().unwrap();
-        if let Some(file) = file_store.get_file(&request.src) {
+        if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
 
             let mut partial_listing = Vec::new();
@@ -181,11 +188,11 @@ impl ClientNamenodeProtocol {
                             .get_children(file.inode).unwrap() {
                         partial_listing.push(crate::protocol
                             ::to_hdfs_file_status_proto(child_file,
-                                &block_store, &file_store));
+                                &query, &block_store, &file_store));
                     }
                 },
                 2 => partial_listing.push(crate::protocol
-                    ::to_hdfs_file_status_proto(file,
+                    ::to_hdfs_file_status_proto(file, &query,
                         &block_store, &file_store)),
                 _ => unimplemented!(),
             }
@@ -286,13 +293,14 @@ impl Protocol for ClientNamenodeProtocol {
     }
 }
 
-fn parse_embedded_query(path: &str)
-        -> Result<(&str, Option<&str>), NahError> {
+fn parse_embedded_query_path(path: &str)
+        -> Result<(&str, Option<(&str, RadixQuery)>), NahError> {
     let fields: Vec<&str> = path.split("+").collect();
+    let query = match fields.len() {
+        1 => None,
+        2 => Some((fields[1], crate::index::parse_query(fields[1])?)),
+        _ => return Err(NahError::from(format!("invalid embedded query path"))),
+    };
 
-    match fields.len() {
-        1 => Ok((fields[0], None)),
-        2 => Ok((fields[0], Some(fields[1]))),
-        _ => Err(NahError::from(format!("invalid embedded query path"))),
-    }
+    Ok((fields[0], query))
 }

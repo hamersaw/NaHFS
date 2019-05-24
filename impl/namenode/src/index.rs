@@ -1,4 +1,4 @@
-use radix::RadixTrie;
+use radix::{self, RadixQuery, RadixTrie};
 use shared::NahError;
 
 pub struct Index {
@@ -36,4 +36,8 @@ impl Index {
 
         Ok(())
     }
+}
+
+pub fn parse_query(query_string: &str) -> Result<RadixQuery, NahError> {
+    Ok(radix::parse_query(query_string)?)
 }

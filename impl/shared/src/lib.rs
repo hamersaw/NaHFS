@@ -1,5 +1,6 @@
 use glob::{GlobError, PatternError};
 use prost::DecodeError;
+use radix::RadixError;
 
 use std::fmt::{Display, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
@@ -17,6 +18,7 @@ pub enum NahError {
     ParseFloatError(ParseFloatError),
     ParseIntError(ParseIntError),
     PatternError(PatternError),
+    RadixError(RadixError),
 }
 
 impl Display for NahError {
@@ -29,6 +31,7 @@ impl Display for NahError {
             NahError::ParseFloatError(ref err) => write!(f, "ParseFloatError: {}", err),
             NahError::ParseIntError(ref err) => write!(f, "ParseIntError: {}", err),
             NahError::PatternError(ref err) => write!(f, "PatternError: {}", err),
+            NahError::RadixError(ref err) => write!(f, "RaddixError: {}", err),
         }
     }
 }
@@ -66,6 +69,12 @@ impl From<ParseIntError> for NahError {
 impl From<PatternError> for NahError {
     fn from(err: PatternError) -> NahError {
         NahError::PatternError(err)
+    }
+}
+
+impl From<RadixError> for NahError {
+    fn from(err: RadixError) -> NahError {
+        NahError::RadixError(err)
     }
 }
 

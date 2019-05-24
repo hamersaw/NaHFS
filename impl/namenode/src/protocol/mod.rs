@@ -1,4 +1,5 @@
 use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeInfoProto, FsPermissionProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
+use radix::RadixQuery;
 
 use crate::block::{Block, BlockStore};
 use crate::datanode::{Datanode, DatanodeStore};
@@ -63,11 +64,19 @@ fn to_datanode_info_proto(datanode: &Datanode,
     din_proto
 }
 
-fn to_hdfs_file_status_proto(file: &File, block_store: &BlockStore,
+fn to_hdfs_file_status_proto(file: &File,
+        query: &Option<(&str, RadixQuery)>, block_store: &BlockStore,
         file_store: &FileStore) -> HdfsFileStatusProto {
     let mut hfs_proto = HdfsFileStatusProto::default();
     hfs_proto.file_type = file.file_type;
     hfs_proto.path = file_store.compute_path(file.inode).into_bytes();
+    if let Some((query_string, _)) = query {
+        hfs_proto.path.push('+' as u8);
+
+        for value in query_string.as_bytes() {
+            hfs_proto.path.push(*value);
+        }
+    }
 
     // iterate over blocks to compute file length
     hfs_proto.length = 0;

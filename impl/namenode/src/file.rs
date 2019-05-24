@@ -118,6 +118,10 @@ impl FileStore {
             }
         }
 
+        if path.len() > 1 {
+            let _ = path.pop();
+        }
+
         path
     }
 
