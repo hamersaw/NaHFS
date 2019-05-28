@@ -5,6 +5,7 @@ use radix::RadixError;
 use std::fmt::{Display, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 
+pub mod block;
 pub mod protos {
     include!(concat!(env!("OUT_DIR"), "/nahfs.rs"));
 }
