@@ -123,9 +123,22 @@ impl StreamHandler for TransferStreamHandler {
                     // read block from file
                     let processor = self.processor.read().unwrap();
                     let mut buf = vec![0u8; len as usize];
-                    if let Err(e) = processor.read(block_id, 
-                            offset, &mut buf) {
-                        warn!("processor read block {}: {}", block_id, e);
+
+                    let read_result = if block_id & FIRST_BIT_U64
+                            == FIRST_BIT_U64 {
+                        // if indexed -> decode block id
+                        let (decoded_id, geohashes) =
+                            shared::block::decode_block_id(&block_id);
+
+                        processor.read_indexed(decoded_id,
+                            &geohashes, offset, &mut buf)
+                    } else {
+                        processor.read(block_id, offset, &mut buf)
+                    };
+
+                    if let Err(e) = read_result {
+                        warn!("processor read block {}: {}",
+                            block_id, e);
                     }
  
                     // send block

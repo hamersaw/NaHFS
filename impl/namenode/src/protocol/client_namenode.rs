@@ -7,19 +7,21 @@ use shared::NahError;
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore};
+use crate::index::Index;
 use crate::storage::StorageStore;
 
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 static FIRST_BIT: u64 = 9223372036854775808;
-static INDEXED_MASK: u64 = 9223372032559808512;
+static INDEXED_MASK: u64 = 9223371968135299072;
 static NON_INDEXED_MASK: u64 = 9223372036854775807;
 
 pub struct ClientNamenodeProtocol {
     block_store: Arc<RwLock<BlockStore>>,
     datanode_store: Arc<RwLock<DatanodeStore>>,
     file_store: Arc<RwLock<FileStore>>,
+    index: Arc<RwLock<Index>>,
     storage_store: Arc<RwLock<StorageStore>>,
 }
 
@@ -27,12 +29,14 @@ impl ClientNamenodeProtocol {
     pub fn new(block_store: Arc<RwLock<BlockStore>>, 
             datanode_store: Arc<RwLock<DatanodeStore>>,
             file_store: Arc<RwLock<FileStore>>,
+            index: Arc<RwLock<Index>>,
             storage_store: Arc<RwLock<StorageStore>>)
             -> ClientNamenodeProtocol {
         ClientNamenodeProtocol {
             block_store: block_store,
             datanode_store: datanode_store,
             file_store: file_store,
+            index: index,
             storage_store: storage_store,
         }
     }
@@ -112,9 +116,10 @@ impl ClientNamenodeProtocol {
         // get file
         if let Some(file) = file_store.get_file(&request.src) {
             let block_store = self.block_store.read().unwrap();
+            let index = self.index.read().unwrap();
             response.fs = Some(crate::protocol
                 ::to_hdfs_file_status_proto(file, &None,
-                    &block_store, &file_store));
+                    &block_store, &file_store, &index));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -127,15 +132,20 @@ impl ClientNamenodeProtocol {
 
         // get block locations
         debug!("getBlockLocations({:?})", request);
+        // TODO - handle error
+        let (path, query) =
+            parse_embedded_query_path(&request.src).unwrap();
+
         let file_store = self.file_store.read().unwrap();
-        if let Some(file) = file_store.get_file(&request.src) {
+        if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
             let datanode_store = self.datanode_store.read().unwrap();
+            let index = self.index.read().unwrap();
             let storage_store = self.storage_store.read().unwrap();
 
             response.locations = Some(crate::protocol
-                ::to_located_blocks_proto(file, &block_store,
-                    &datanode_store, &storage_store));
+                ::to_located_blocks_proto(file, &query, &block_store,
+                    &datanode_store, &index, &storage_store));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -152,15 +162,13 @@ impl ClientNamenodeProtocol {
         let (path, query) =
             parse_embedded_query_path(&request.src).unwrap();
 
-        println!("TODO - PATH:'{}' QUERY:'{:?}'", path, query);
-
         let file_store = self.file_store.read().unwrap();
-        //if let Some(file) = file_store.get_file(&request.src) {
         if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
+            let index = self.index.read().unwrap();
             response.fs = Some(crate::protocol
                 ::to_hdfs_file_status_proto(file, &query,
-                    &block_store, &file_store));
+                    &block_store, &file_store, &index));
         }
 
         response.encode_length_delimited(resp_buf).unwrap();
@@ -180,6 +188,7 @@ impl ClientNamenodeProtocol {
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
+            let index = self.index.read().unwrap();
 
             let mut partial_listing = Vec::new();
             match file.file_type {
@@ -188,12 +197,12 @@ impl ClientNamenodeProtocol {
                             .get_children(file.inode).unwrap() {
                         partial_listing.push(crate::protocol
                             ::to_hdfs_file_status_proto(child_file,
-                                &query, &block_store, &file_store));
+                                &query, &block_store, &file_store, &index));
                     }
                 },
                 2 => partial_listing.push(crate::protocol
                     ::to_hdfs_file_status_proto(file, &query,
-                        &block_store, &file_store)),
+                        &block_store, &file_store, &index)),
                 _ => unimplemented!(),
             }
 

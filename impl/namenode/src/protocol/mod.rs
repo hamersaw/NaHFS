@@ -4,6 +4,7 @@ use radix::RadixQuery;
 use crate::block::{Block, BlockStore};
 use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore};
+use crate::index::Index;
 use crate::storage::StorageStore;
 
 mod client_namenode;
@@ -13,6 +14,8 @@ mod nahfs;
 pub use client_namenode::ClientNamenodeProtocol;
 pub use datanode::DatanodeProtocol;
 pub use nahfs::NahfsProtocol;
+
+use std::collections::HashMap;
 
 fn to_datanode_info_proto(datanode: &Datanode,
         storage_store: Option<&StorageStore>) -> DatanodeInfoProto {
@@ -66,7 +69,7 @@ fn to_datanode_info_proto(datanode: &Datanode,
 
 fn to_hdfs_file_status_proto(file: &File,
         query: &Option<(&str, RadixQuery)>, block_store: &BlockStore,
-        file_store: &FileStore) -> HdfsFileStatusProto {
+        file_store: &FileStore, index: &Index) -> HdfsFileStatusProto {
     let mut hfs_proto = HdfsFileStatusProto::default();
     hfs_proto.file_type = file.file_type;
     hfs_proto.path = file_store.compute_path(file.inode).into_bytes();
@@ -80,9 +83,14 @@ fn to_hdfs_file_status_proto(file: &File,
 
     // iterate over blocks to compute file length
     hfs_proto.length = 0;
-    for block_id in file.blocks.iter() {
-        if let Some(block) = block_store.get_block(block_id) {
-            hfs_proto.length += block.length;
+    for (block_id, query_result) in validate_block_ids(
+            &file.blocks, block_store, index, query) {
+        match query_result {
+            Some((_, length)) => hfs_proto.length += length as u64,
+            None => {
+                let block = block_store.get_block(&block_id).unwrap();
+                hfs_proto.length += block.length;
+            },
         }
     }
 
@@ -111,52 +119,110 @@ fn to_hdfs_file_status_proto(file: &File,
     hfs_proto
 }
 
-fn to_located_blocks_proto(file: &File, block_store: &BlockStore,
-        datanode_store: &DatanodeStore, storage_store: &StorageStore)
-        -> LocatedBlocksProto {
+fn to_located_blocks_proto(file: &File,
+        query: &Option<(&str, RadixQuery)>, block_store: &BlockStore,
+        datanode_store: &DatanodeStore, index: &Index,
+        storage_store: &StorageStore) -> LocatedBlocksProto {
     let mut lbs_proto = LocatedBlocksProto::default();
     let blocks = &mut lbs_proto.blocks;
 
     let (mut length, mut complete) = (0, true);
-    for block_id in &file.blocks {
-        if let Some(block) = block_store.get_block(block_id) {
-            let mut lb_proto = LocatedBlockProto::default();
-            let eb_proto = &mut lb_proto.b;
+    let valid_block_ids = validate_block_ids(&file.blocks,
+        block_store, index, query);
+    for (block_id, query_result) in valid_block_ids {
+        let block = block_store.get_block(&block_id).unwrap();
 
-            // populate ExtendedBlockProto
-            eb_proto.block_id = block.id;
-            eb_proto.num_bytes = Some(block.length);
+        // populate LocatedBlockProto
+        let mut lb_proto = LocatedBlockProto::default();
+        let eb_proto = &mut lb_proto.b;
 
-            // populate LocatedBlockProto
-            lb_proto.offset = length;
-            lb_proto.corrupt = false;
+        // populate ExtendedBlockProto
+        match query_result {
+            Some((query_block_id, length)) => {
+                eb_proto.block_id = query_block_id;
+                eb_proto.num_bytes = Some(length as u64);
+            },
+            None => {
+                eb_proto.block_id = block.id;
+                eb_proto.num_bytes = Some(block.length);
+            },
+        }
 
-            // populate locs
-            for datanode_id in &block.locations {
-                if let Some(datanode) =
-                        datanode_store.get_datanode(datanode_id) {
-                    lb_proto.locs.push(to_datanode_info_proto(
-                        datanode, Some(storage_store)));
-                }
+        // populate LocatedBlockProto
+        lb_proto.offset = length;
+        lb_proto.corrupt = false;
+
+        // populate locs
+        for datanode_id in &block.locations {
+            if let Some(datanode) =
+                    datanode_store.get_datanode(datanode_id) {
+                lb_proto.locs.push(to_datanode_info_proto(
+                    datanode, Some(storage_store)));
             }
+        }
 
-            // populate storages
-            for storage_id in &block.storage_ids {
-                lb_proto.storage_types.push(0);
-                lb_proto.storage_i_ds.push(storage_id.to_string());
-                lb_proto.is_cached.push(false);
-            }
+        // populate storages
+        for storage_id in &block.storage_ids {
+            lb_proto.storage_types.push(0);
+            lb_proto.storage_i_ds.push(storage_id.to_string());
+            lb_proto.is_cached.push(false);
+        }
 
-            blocks.push(lb_proto);
-            length += block.length;
-        } else {
+        length += eb_proto.num_bytes.unwrap(); // increment file length
+        blocks.push(lb_proto);
+        //length += block.length;
+        /*} else {
+            // TODO - figure out if file is complete
             // block_id not found -> file not complete
             complete = false;
-        }
+        }*/
     }
 
     lbs_proto.file_length = length;
     lbs_proto.under_construction = !complete;
     lbs_proto.is_last_block_complete = complete;
     lbs_proto
+}
+
+fn validate_block_ids(block_ids: &Vec<u64>, block_store: &BlockStore,
+        index: &Index, query: &Option<(&str, RadixQuery)>)
+        -> Vec<(u64, Option<(u64, u32)>)> {
+    let mut blocks = Vec::new();
+
+    match query {
+        Some((_, query)) => {
+            // submit query to index
+            let query_map = index.query(query, block_ids);
+
+            // iterate over length_map
+            for (block_id, (geohashes, lengths)) in query_map.iter() {
+                if geohashes.len() == 0 {
+                    continue;
+                }
+
+                // compute block_id
+                let query_block_id = shared::block
+                    ::encode_block_id(&block_id, &geohashes);
+
+                // compute block length
+                let mut query_block_length = 0;
+                for length in lengths {
+                    query_block_length += length;
+                }
+
+                blocks.push((*block_id,
+                    Some((query_block_id, query_block_length))));
+            }
+        },
+        None => {
+            // if no query -> return blocks that exist in BlockStore
+            for block_id in block_ids {
+                if let Some(block) = block_store.get_block(block_id) {
+                    blocks.push((*block_id, None));
+                }
+            }
+        },
+    }
+
+    blocks
 }

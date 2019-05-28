@@ -45,6 +45,12 @@ impl BlockProcessor {
         super::read_block(block_id, offset, &self.data_directory, buf)
     }
 
+    pub fn read_indexed(&self, block_id: u64, geohashes: &Vec<u8>,
+            offset: u64, buf: &mut [u8]) -> Result<(), NahError> {
+        super::read_indexed_block(block_id,
+            geohashes, offset, &self.data_directory, buf)
+    }
+
     pub fn start(&mut self) -> Result<(), NahError> {
         for _ in 0..self.thread_count {
             // clone variables

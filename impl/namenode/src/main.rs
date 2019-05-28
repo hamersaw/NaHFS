@@ -70,7 +70,7 @@ fn main() {
 
     let client_namenode_protocol = ClientNamenodeProtocol::new(
         block_store.clone(), datanode_store.clone(),
-        file_store.clone(), storage_store.clone());
+        file_store.clone(), index.clone(), storage_store.clone());
     protocols.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
         Box::new(client_namenode_protocol));
 

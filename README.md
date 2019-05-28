@@ -15,6 +15,5 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 - replicate blocks
 - parameterize hardcoded values
 #### namenode
-- parse filename with embedded query (ex. blah.csv?geohash=9fa)
 - persist file system on disk for restarts
 - parameterize unnecessarily hardcoded values

@@ -140,6 +140,74 @@ fn read_block(block_id: u64, offset: u64, data_directory: &str,
     Ok(())
 }
 
+fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
+        data_directory: &str, buf: &mut [u8]) -> Result<(), NahError> {
+    // read block metadata
+    let mut metadata_buf = Vec::new();
+    let mut meta_file = File::open(format!("{}/blk_{}.meta", 
+        data_directory, block_id))?;
+    meta_file.read_to_end(&mut metadata_buf)?;
+
+    let mut bm_proto = BlockMetadataProto
+        ::decode_length_delimited(&metadata_buf)?;
+
+    // open file
+    let mut file = File::open(&format!("{}/blk_{}",
+        data_directory, block_id))?;
+
+    let mut buf_index = 0;
+    let mut remaining_offset = offset;
+    if let Some(bi_proto) = &mut bm_proto.index {
+        println!("bi_proto geohash {:?}", bi_proto.geohashes);
+        for i in 0..bi_proto.geohashes.len() {
+            // get last character of geohash
+            let last_char = bi_proto.geohashes[i].pop().unwrap_or('x');
+            let key = match last_char as u8 {
+                x if x >= 48 && x <= 58 => x - 48,
+                x if x >= 97 && x <= 102 => x - 87,
+                _ => {
+                    warn!("invalid geohash character {}", last_char);
+                    continue;
+                },
+            };
+
+            println!("geohash check: {} {:?}", &key, geohashes);
+            if geohashes.contains(&key) {
+                println!("processing geohash: {}", &key);
+                // process geohash 
+                let mut start_index = bi_proto.start_indices[i] as u64;
+                let end_index = bi_proto.end_indices[i] as u64;
+                println!("start,end: {}, {}", start_index, end_index);
+
+                while start_index < end_index {
+                    let index_length = end_index - start_index;
+
+                    if remaining_offset > 0 {
+                        // skip byte_count bytes for block offset
+                        let byte_count = std::cmp
+                            ::min(remaining_offset, index_length);
+
+                        start_index += byte_count;
+                        remaining_offset -= byte_count;
+                        println!("offset bytes: {}", byte_count);
+                    } else {
+                        // read index_length bytes into buf
+                        file.seek(SeekFrom::Start(start_index));
+                        file.read_exact(&mut buf[buf_index..
+                            buf_index + (index_length as usize)])?;
+
+                        println!("read bytes: {} to index {}", index_length, buf_index);
+                        buf_index += index_length as usize;
+                        start_index += index_length;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
     println!("TODO - TRANSFER BLOCK: {}", block_op.block_id);
     Ok(())
