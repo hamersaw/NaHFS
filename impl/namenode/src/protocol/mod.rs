@@ -17,6 +17,8 @@ pub use nahfs::NahfsProtocol;
 
 fn to_datanode_info_proto(datanode: &Datanode,
         storage_store: Option<&StorageStore>) -> DatanodeInfoProto {
+    let mut last_update = 0;
+
     // iniitalize DatanodeInfoProto
     let mut din_proto = DatanodeInfoProto::default();
     din_proto.admin_state = Some(0); // NORMAL
@@ -41,6 +43,8 @@ fn to_datanode_info_proto(datanode: &Datanode,
                     remaining += state.remaining.unwrap_or(0);
                     block_pool_used += state.block_pool_used.unwrap_or(0);
                     non_dfs_used += state.non_dfs_used.unwrap_or(0);
+                    last_update = std::cmp::max(last_update,
+                        state.update_timestamp);
                 }
             }
         }
@@ -56,12 +60,16 @@ fn to_datanode_info_proto(datanode: &Datanode,
     if let Some(state) = datanode.states.last() {
         din_proto.cache_capacity = state.cache_capacity;
         din_proto.cache_used = state.cache_used;
-        din_proto.last_update = Some(state.update_timestamp);
         din_proto.xceiver_count = state.xceiver_count;
+        last_update = std::cmp::max(last_update,
+            state.update_timestamp);
     }
 
-    // TODO - last update should be max of datanode state and storage state
-    
+    // last updated = max of most recent datanode and storage states
+    if last_update != 0 {
+        din_proto.last_update = Some(last_update);
+    }
+ 
     din_proto
 }
 
