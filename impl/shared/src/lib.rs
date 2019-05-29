@@ -10,6 +10,16 @@ pub mod protos {
     include!(concat!(env!("OUT_DIR"), "/nahfs.rs"));
 }
 
+pub fn geohash_char_to_value(c: char) -> Result<u8, NahError> {
+    // if token contains block id -> add geohash
+    match c as u8 {
+        x if x >= 48 && x <= 58 => Ok(x - 48),
+        x if x >= 97 && x <= 102 => Ok(x - 87),
+        _ => Err(NahError::from(
+            format!("invalid geohash character '{}'", c))),
+    }
+}
+
 impl From<NahError> for std::io::Error {
     fn from(err: NahError) -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::Other, err.to_string())

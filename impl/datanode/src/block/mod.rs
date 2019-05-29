@@ -1,5 +1,5 @@
 use prost::Message;
-use shared::NahError;
+use shared::{self, NahError};
 
 mod processor;
 pub use processor::BlockProcessor;
@@ -157,26 +157,21 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
     let mut buf_index = 0;
     let mut remaining_offset = offset;
     if let Some(bi_proto) = &mut bm_proto.index {
-        println!("bi_proto geohash {:?}", bi_proto.geohashes);
         for i in 0..bi_proto.geohashes.len() {
-            // get last character of geohash
-            let last_char = bi_proto.geohashes[i].pop().unwrap_or('x');
-            let key = match last_char as u8 {
-                x if x >= 48 && x <= 58 => x - 48,
-                x if x >= 97 && x <= 102 => x - 87,
-                _ => {
-                    warn!("invalid geohash character {}", last_char);
+            // compute geohash key for last character in geohash
+            let c = bi_proto.geohashes[i].pop().unwrap_or('x');
+            let geohash_key = match shared::geohash_char_to_value(c) {
+                Ok(geohash_key) => geohash_key,
+                Err(e) => {
+                    warn!("failed to parse geohash: {}", e);
                     continue;
                 },
             };
 
-            println!("geohash check: {} {:?}", &key, geohashes);
-            if geohashes.contains(&key) {
-                println!("processing geohash: {}", &key);
-                // process geohash 
+            if geohashes.contains(&geohash_key) {
+                // if valid geohash -> process geohash 
                 let mut start_index = bi_proto.start_indices[i] as u64;
                 let end_index = bi_proto.end_indices[i] as u64;
-                println!("start,end: {}, {}", start_index, end_index);
 
                 while start_index < end_index {
                     let index_length = end_index - start_index;
@@ -188,14 +183,12 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
 
                         start_index += byte_count;
                         remaining_offset -= byte_count;
-                        println!("offset bytes: {}", byte_count);
                     } else {
                         // read index_length bytes into buf
                         file.seek(SeekFrom::Start(start_index))?;
                         file.read_exact(&mut buf[buf_index..
                             buf_index + (index_length as usize)])?;
 
-                        println!("read bytes: {} to index {}", index_length, buf_index);
                         buf_index += index_length as usize;
                         start_index += index_length;
                     }

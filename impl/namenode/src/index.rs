@@ -1,5 +1,5 @@
 use radix::{self, RadixQuery, RadixTrie};
-use shared::NahError;
+use shared::{self, NahError};
 
 use std::collections::HashMap;
 
@@ -61,16 +61,25 @@ fn query_process(key: &Vec<u8>, value: &Vec<(u64, u32)>,
     for (block_id, length) in value {
         if let Some((geohashes, lengths)) = token.get_mut(&block_id) {
             // if token contains block id -> add geohash
-            let geohash_index = match key[key.len() - 1] {
+            /*let geohash_key = match key[key.len() - 1] {
                 x if x >= 48 && x <= 58 => x - 48,
                 x if x >= 97 && x <= 102 => x - 87,
                 _ => {
                     warn!("invalid geohash character in {:?}", &key);
                     continue;
                 },
+            };*/
+
+            let c = key[key.len() - 1] as char;
+            let geohash_key = match shared::geohash_char_to_value(c) {
+                Ok(geohash_key) => geohash_key,
+                Err(e) => {
+                    warn!("failed to parse geohash: {}", e);
+                    continue;
+                },
             };
 
-            geohashes.push(geohash_index);
+            geohashes.push(geohash_key);
             lengths.push(*length);
         }
     }
