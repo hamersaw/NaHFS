@@ -34,7 +34,7 @@ impl StorageStore {
             block_pool_used: Option<u64>, non_dfs_used: Option<u64>,
             update_timestamp: u64) {
         // get storage, creating if it doesn't exist
-        let mut storage = self.map.entry(id.to_string()).or_insert(
+        let storage = self.map.entry(id.to_string()).or_insert(
             Storage {
                 id: id.to_string(),
                 states: Vec::new(),

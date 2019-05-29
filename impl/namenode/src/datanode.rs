@@ -28,7 +28,7 @@ impl DatanodeStore {
     }
 
     pub fn add_storage(&mut self, id: &str, storage_id: &str) {
-        if let Some(mut datanode) = self.map.get_mut(id) {
+        if let Some(datanode) = self.map.get_mut(id) {
             for value in datanode.storage_ids.iter() {
                 if value == storage_id {
                     return;
@@ -83,7 +83,7 @@ impl DatanodeStore {
     pub fn update(&mut self, id: &str, cache_capacity: Option<u64>,
             cache_used: Option<u64>, update_timestamp: u64,
             xmits_in_progress: Option<u32>, xceiver_count: Option<u32>) {
-        if let Some(mut datanode) = self.map.get_mut(id) {
+        if let Some(datanode) = self.map.get_mut(id) {
             // create and add state
             let state = DatanodeState {
                 cache_capacity: cache_capacity,

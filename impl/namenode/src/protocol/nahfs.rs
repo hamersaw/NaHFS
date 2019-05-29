@@ -1,7 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
 use shared::NahError;
-use shared::protos::{BlockIndexProto, BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
+use shared::protos::{IndexReportResponseProto, IndexReportRequestProto};
 
 use crate::index::Index;
 
@@ -22,7 +22,7 @@ impl NahfsProtocol {
             resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = IndexReportRequestProto
             ::decode_length_delimited(req_buf)?;
-        let mut response = IndexReportResponseProto::default();
+        let response = IndexReportResponseProto::default();
 
         // process index report
         trace!("indexReport({:?})", request);
@@ -44,7 +44,7 @@ impl NahfsProtocol {
 }
 
 impl Protocol for NahfsProtocol {
-    fn process(&self, user: &Option<String>, method: &str,
+    fn process(&self, _user: &Option<String>, method: &str,
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
             "indexReport" => self.index_report(req_buf, resp_buf)?,

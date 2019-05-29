@@ -251,7 +251,7 @@ impl FileStore {
         let parent_inode = self.parents
             .get(&src_inode).unwrap().to_owned();
         self.parents.remove(&src_inode);
-        let mut children = self.children.get_mut(&parent_inode).unwrap();
+        let children = self.children.get_mut(&parent_inode).unwrap();
         let mut index = 0;
         for (i, value) in children.iter().enumerate() {
             if value == &src_inode {

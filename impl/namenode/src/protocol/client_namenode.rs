@@ -5,8 +5,8 @@ use radix::RadixQuery;
 use shared::NahError;
 
 use crate::block::BlockStore;
-use crate::datanode::{Datanode, DatanodeStore};
-use crate::file::{File, FileStore};
+use crate::datanode::DatanodeStore;
+use crate::file::FileStore;
 use crate::index::Index;
 use crate::storage::StorageStore;
 
@@ -52,7 +52,7 @@ impl ClientNamenodeProtocol {
         let mut block_id = rand::random::<u64>();
         let mut file_store = self.file_store.write().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
-            let mut lb_proto = &mut response.block;
+            let lb_proto = &mut response.block;
 
             // compute block id
             if let Some("INDEXED") =
@@ -80,7 +80,7 @@ impl ClientNamenodeProtocol {
         }
 
         // add blockid to file
-        if let Some(mut file) = file_store.get_file_mut(&request.src) {
+        if let Some(file) = file_store.get_file_mut(&request.src) {
             file.blocks.push(block_id);
         }
 
@@ -96,8 +96,8 @@ impl ClientNamenodeProtocol {
 
         // complete file
         debug!("complete({:?})", request);
-        let mut file_store = self.file_store.write().unwrap();
-        if let Some(file) = file_store.get_file(&request.src) {
+        let file_store = self.file_store.write().unwrap();
+        if let Some(_) = file_store.get_file(&request.src) {
             // TODO complete
         }
 
@@ -282,7 +282,7 @@ impl ClientNamenodeProtocol {
             resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = SetStoragePolicyRequestProto
             ::decode_length_delimited(req_buf).unwrap();
-        let mut response = SetStoragePolicyResponseProto::default();
+        let response = SetStoragePolicyResponseProto::default();
 
         // create directories
         debug!("setStoragePolicy({:?})", request);

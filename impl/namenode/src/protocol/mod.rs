@@ -1,7 +1,7 @@
-use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeInfoProto, FsPermissionProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
+use hdfs_protos::hadoop::hdfs::{DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
 use radix::RadixQuery;
 
-use crate::block::{Block, BlockStore};
+use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore};
 use crate::index::Index;
@@ -14,8 +14,6 @@ mod nahfs;
 pub use client_namenode::ClientNamenodeProtocol;
 pub use datanode::DatanodeProtocol;
 pub use nahfs::NahfsProtocol;
-
-use std::collections::HashMap;
 
 fn to_datanode_info_proto(datanode: &Datanode,
         storage_store: Option<&StorageStore>) -> DatanodeInfoProto {
@@ -126,7 +124,7 @@ fn to_located_blocks_proto(file: &File,
     let mut lbs_proto = LocatedBlocksProto::default();
     let blocks = &mut lbs_proto.blocks;
 
-    let (mut length, mut complete) = (0, true);
+    let (mut length, complete) = (0, true);
     let valid_block_ids = validate_block_ids(&file.blocks,
         block_store, index, query);
     for (block_id, query_result) in valid_block_ids {
@@ -217,7 +215,7 @@ fn validate_block_ids(block_ids: &Vec<u64>, block_store: &BlockStore,
         None => {
             // if no query -> return blocks that exist in BlockStore
             for block_id in block_ids {
-                if let Some(block) = block_store.get_block(block_id) {
+                if let Some(_) = block_store.get_block(block_id) {
                     blocks.push((*block_id, None));
                 }
             }

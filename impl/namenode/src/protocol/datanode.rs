@@ -4,7 +4,7 @@ use prost::Message;
 use shared::NahError;
 
 use crate::block::BlockStore;
-use crate::datanode::{Datanode, DatanodeStore};
+use crate::datanode::DatanodeStore;
 use crate::storage::StorageStore;
 
 use std::sync::{Arc, RwLock};
@@ -31,7 +31,7 @@ impl DatanodeProtocol {
             resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = BlockReportRequestProto
             ::decode_length_delimited(req_buf)?;
-        let mut response = BlockReportResponseProto::default();
+        let response = BlockReportResponseProto::default();
 
         // process block report
         trace!("blockReport({:?})", request);
@@ -60,7 +60,7 @@ impl DatanodeProtocol {
             resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = HeartbeatRequestProto
             ::decode_length_delimited(req_buf)?;
-        let mut response = HeartbeatResponseProto::default();
+        let response = HeartbeatResponseProto::default();
 
         // process heartbeat
         trace!("heartbeat({:?})", request);
@@ -93,7 +93,7 @@ impl DatanodeProtocol {
             resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = RegisterDatanodeRequestProto
             ::decode_length_delimited(req_buf)?;
-        let mut response = RegisterDatanodeResponseProto::default();
+        let response = RegisterDatanodeResponseProto::default();
 
         // register datanode
         trace!("registerDatanode({:?})", request);
@@ -108,7 +108,7 @@ impl DatanodeProtocol {
 }
 
 impl Protocol for DatanodeProtocol {
-    fn process(&self, user: &Option<String>, method: &str,
+    fn process(&self, _user: &Option<String>, method: &str,
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
             "blockReport" => self.block_report(req_buf, resp_buf)?,
