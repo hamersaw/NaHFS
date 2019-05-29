@@ -1,5 +1,5 @@
 use glob::{GlobError, PatternError};
-use prost::DecodeError;
+use prost::{EncodeError, DecodeError};
 use radix::RadixError;
 
 use std::fmt::{Display, Formatter};
@@ -10,9 +10,16 @@ pub mod protos {
     include!(concat!(env!("OUT_DIR"), "/nahfs.rs"));
 }
 
+impl From<NahError> for std::io::Error {
+    fn from(err: NahError) -> std::io::Error {
+        std::io::Error::new(std::io::ErrorKind::Other, err.to_string())
+    }
+}
+
 #[derive(Debug)]
 pub enum NahError {
     DecodeError(DecodeError),
+    EncodeError(EncodeError),
     GlobError(GlobError),
     IoError(std::io::Error),
     Nah(String),
@@ -26,6 +33,7 @@ impl Display for NahError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match *self {
             NahError::DecodeError(ref err) => write!(f, "DecodeError: {:?}", err),
+            NahError::EncodeError(ref err) => write!(f, "EncodeError: {:?}", err),
             NahError::GlobError(ref err) => write!(f, "GlobError: {:?}", err),
             NahError::IoError(ref err) => write!(f, "IoError: {:?}", err),
             NahError::Nah(ref err) => write!(f, "NahError: {}", err),
@@ -40,6 +48,12 @@ impl Display for NahError {
 impl From<DecodeError> for NahError {
     fn from(err: DecodeError) -> NahError {
         NahError::DecodeError(err)
+    }
+}
+
+impl From<EncodeError> for NahError {
+    fn from(err: EncodeError) -> NahError {
+        NahError::EncodeError(err)
     }
 }
 

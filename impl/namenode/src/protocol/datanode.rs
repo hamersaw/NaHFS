@@ -1,6 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeResponseProto, RegisterDatanodeRequestProto};
 use prost::Message;
+use shared::NahError;
 
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
@@ -26,9 +27,10 @@ impl DatanodeProtocol {
         }
     }
 
-    fn block_report(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn block_report(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = BlockReportRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = BlockReportResponseProto::default();
 
         // process block report
@@ -50,12 +52,14 @@ impl DatanodeProtocol {
             }
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn heartbeat(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn heartbeat(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = HeartbeatRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = HeartbeatResponseProto::default();
 
         // process heartbeat
@@ -81,12 +85,14 @@ impl DatanodeProtocol {
             datanode_store.add_storage(datanode_id, storage_id);
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn register_datanode(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn register_datanode(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = RegisterDatanodeRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = RegisterDatanodeResponseProto::default();
 
         // register datanode
@@ -96,18 +102,21 @@ impl DatanodeProtocol {
         datanode_store.register(di_proto.datanode_uuid,
             di_proto.ip_addr, di_proto.xfer_port);
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 }
 
 impl Protocol for DatanodeProtocol {
     fn process(&self, user: &Option<String>, method: &str,
-            req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+            req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
-            "blockReport" => self.block_report(req_buf, resp_buf),
-            "heartbeat" => self.heartbeat(req_buf, resp_buf),
-            "registerDatanode" => self.register_datanode(req_buf, resp_buf),
+            "blockReport" => self.block_report(req_buf, resp_buf)?,
+            "heartbeat" => self.heartbeat(req_buf, resp_buf)?,
+            "registerDatanode" => self.register_datanode(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),
         }
+
+        Ok(())
     }
 }

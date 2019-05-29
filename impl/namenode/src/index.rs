@@ -76,6 +76,7 @@ fn query_process(key: &Vec<u8>, value: &Vec<(u64, u32)>,
     }
 }
 
+//pub fn parse_query(query_string: &str) -> Result<RadixQuery, NahError> {
 pub fn parse_query(query_string: &str) -> Result<RadixQuery, NahError> {
     Ok(radix::parse_query(query_string)?)
 }

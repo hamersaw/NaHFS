@@ -41,9 +41,11 @@ impl NamenodeProtocol {
         // send RegisterDatanodeRequestProto
         let mut client = Client::new(&self.config.namenode_ip_address,
             self.config.namenode_port as u16)?;
-        client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "registerDatanode", rdr_proto)?;
+        let (_, resp_buf) = client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "registerDatanode", rdr_proto)?;
 
-        // TODO - read respnose
+        // read respnose
+        let _ = RegisterDatanodeResponseProto
+            ::decode_length_delimited(resp_buf)?;
 
         // initialize shutdown and tick channels
         let shutdown_receiver = self.shutdown_channel.1.clone();
@@ -114,13 +116,12 @@ fn block_report(config: &Config) -> Result<(), NahError> {
             ::decode_length_delimited(&buf)?;
 
         // add block metadata to StorageBlockReportProto
+        // block_id | block_length | generation_stamp | replica_state
         let blocks = &mut sbr_proto.blocks;
         blocks.push(bm_proto.block_id);
         blocks.push(bm_proto.length);
-        blocks.push(0u64); // TODO - generation stamp
-        blocks.push(0u64); // TODO - replica state
-
-        // TODO - process block index metadata
+        blocks.push(0u64);
+        blocks.push(0u64);
     }
 
     trace!("writing BlockReportRequest to {}:{}",
@@ -132,9 +133,11 @@ fn block_report(config: &Config) -> Result<(), NahError> {
     brr_proto.reports.push(sbr_proto);
 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
-    client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "blockReport", brr_proto)?;
+    let (_, resp_buf) = client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "blockReport", brr_proto)?;
 
-    // TODO - read response
+    // read response
+    let _ = BlockReportResponseProto
+        ::decode_length_delimited(resp_buf)?;
 
     Ok(())
 }
@@ -201,9 +204,10 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
         config.namenode_ip_address, config.namenode_port);
 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
-    client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "heartbeat", hr_proto)?;
+    let (_, resp_buf) = client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "heartbeat", hr_proto)?;
 
-    // TODO - read response
+    // read response
+    let _ = HeartbeatResponseProto::decode_length_delimited(resp_buf)?;
 
     Ok(())
 }
@@ -243,9 +247,11 @@ fn index_report(config: &Config) -> Result<(), NahError> {
 
     // write IndexReportRequestProto 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
-    client.write_message("com.bushpath.nahfs.protocol.NahfsProtocol", "indexReport", irr_proto)?;
+    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahfsProtocol", "indexReport", irr_proto)?;
 
-    // TODO - read response
+    // read response
+    let _ = IndexReportResponseProto
+        ::decode_length_delimited(resp_buf)?;
 
     Ok(())
 }

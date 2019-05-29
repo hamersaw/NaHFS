@@ -41,9 +41,10 @@ impl ClientNamenodeProtocol {
         }
     }
 
-    fn add_block(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn add_block(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = AddBlockRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = AddBlockResponseProto::default();
 
         // add block
@@ -83,12 +84,14 @@ impl ClientNamenodeProtocol {
             file.blocks.push(block_id);
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn complete(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn complete(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = CompleteRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = CompleteResponseProto::default();
 
         // complete file
@@ -99,12 +102,14 @@ impl ClientNamenodeProtocol {
         }
 
         response.result = true;
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn create(&self, user: &str, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn create(&self, user: &str, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = CreateRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = CreateResponseProto::default();
 
         // create file
@@ -122,19 +127,19 @@ impl ClientNamenodeProtocol {
                     &block_store, &file_store, &index));
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn get_block_locations(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn get_block_locations(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = GetBlockLocationsRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = GetBlockLocationsResponseProto::default();
 
         // get block locations
         debug!("getBlockLocations({:?})", request);
-        // TODO - handle error
-        let (path, query) =
-            parse_embedded_query_path(&request.src).unwrap();
+        let (path, query) = parse_embedded_query_path(&request.src)?;
 
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(path) {
@@ -148,19 +153,19 @@ impl ClientNamenodeProtocol {
                     &datanode_store, &index, &storage_store));
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn get_file_info(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn get_file_info(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = GetFileInfoRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = GetFileInfoResponseProto::default();
 
         // get file
         debug!("getFileInfo({:?})", request);
-        // TODO - handle error
-        let (path, query) =
-            parse_embedded_query_path(&request.src).unwrap();
+        let (path, query) = parse_embedded_query_path(&request.src)?;
 
         let file_store = self.file_store.read().unwrap();
         if let Some(file) = file_store.get_file(path) {
@@ -171,12 +176,14 @@ impl ClientNamenodeProtocol {
                     &block_store, &file_store, &index));
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn get_listing(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn get_listing(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = GetListingRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = GetListingResponseProto::default();
 
         // get listing
@@ -214,12 +221,14 @@ impl ClientNamenodeProtocol {
             response.dir_list = Some(directory_listing);
         }
         
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn get_server_defaults(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn get_server_defaults(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = GetServerDefaultsRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = GetServerDefaultsResponseProto::default();
         let mut fsd_proto = &mut response.server_defaults;
 
@@ -232,12 +241,14 @@ impl ClientNamenodeProtocol {
         fsd_proto.file_buffer_size = 5000;
         // TODO - parameterize server defaults values
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn mkdirs(&self, user: &str, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn mkdirs(&self, user: &str, req_buf: &[u8],
+              resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = MkdirsRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = MkdirsResponseProto::default();
 
         // create directories
@@ -247,12 +258,14 @@ impl ClientNamenodeProtocol {
             user, user, request.create_parent);
 
         response.result = true;
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn rename(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn rename(&self, req_buf: &[u8],
+              resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = RenameRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = RenameResponseProto::default();
 
         // create directories
@@ -261,10 +274,12 @@ impl ClientNamenodeProtocol {
         file_store.rename(&request.src, &request.dst);
 
         response.result = true;
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
-    fn set_storage_policy(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn set_storage_policy(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = SetStoragePolicyRequestProto
             ::decode_length_delimited(req_buf).unwrap();
         let mut response = SetStoragePolicyResponseProto::default();
@@ -274,31 +289,34 @@ impl ClientNamenodeProtocol {
         let mut file_store = self.file_store.write().unwrap();
         file_store.set_storage_policy(&request.src, &request.policy_name);
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 }
 
 impl Protocol for ClientNamenodeProtocol {
     fn process(&self, user: &Option<String>, method: &str,
-            req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+            req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         let user = match user {
             Some(user) => user,
             None => "default",
         };
 
         match method {
-            "addBlock" => self.add_block(req_buf, resp_buf),
-            "complete" => self.complete(req_buf, resp_buf),
-            "create" => self.create(user, req_buf, resp_buf),
-            "getBlockLocations" => self.get_block_locations(req_buf, resp_buf),
-            "getFileInfo" => self.get_file_info(req_buf, resp_buf),
-            "getListing" => self.get_listing(req_buf, resp_buf),
-            "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf),
-            "mkdirs" => self.mkdirs(user, req_buf, resp_buf),
-            "rename" => self.rename(req_buf, resp_buf),
-            "setStoragePolicy" => self.set_storage_policy(req_buf, resp_buf),
+            "addBlock" => self.add_block(req_buf, resp_buf)?,
+            "complete" => self.complete(req_buf, resp_buf)?,
+            "create" => self.create(user, req_buf, resp_buf)?,
+            "getBlockLocations" => self.get_block_locations(req_buf, resp_buf)?,
+            "getFileInfo" => self.get_file_info(req_buf, resp_buf)?,
+            "getListing" => self.get_listing(req_buf, resp_buf)?,
+            "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf)?,
+            "mkdirs" => self.mkdirs(user, req_buf, resp_buf)?,
+            "rename" => self.rename(req_buf, resp_buf)?,
+            "setStoragePolicy" => self.set_storage_policy(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),
         }
+
+        Ok(())
     }
 }
 
@@ -308,7 +326,7 @@ fn parse_embedded_query_path(path: &str)
     let query = match fields.len() {
         1 => None,
         2 => Some((fields[1], crate::index::parse_query(fields[1])?)),
-        _ => return Err(NahError::from(format!("invalid embedded query path"))),
+        _ => return Err(NahError::from("invalid embedded query path")),
     };
 
     Ok((fields[0], query))

@@ -36,7 +36,9 @@ impl StreamHandler for TransferStreamHandler {
             let op_type = stream.read_u8()?;
             
             if version != PROTOCOL_VERSION {
-                // TODO - error
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Unsupported protocol version"));
             }
 
             // calculate leb128 encoded op proto length

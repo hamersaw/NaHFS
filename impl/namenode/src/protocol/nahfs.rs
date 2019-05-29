@@ -1,5 +1,6 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
+use shared::NahError;
 use shared::protos::{BlockIndexProto, BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
 
 use crate::index::Index;
@@ -17,9 +18,10 @@ impl NahfsProtocol {
         }
     }
 
-    fn index_report(&self, req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+    fn index_report(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = IndexReportRequestProto
-            ::decode_length_delimited(req_buf).unwrap();
+            ::decode_length_delimited(req_buf)?;
         let mut response = IndexReportResponseProto::default();
 
         // process index report
@@ -30,22 +32,25 @@ impl NahfsProtocol {
             let block_index = &request.block_indices[i];
 
             for j in 0..block_index.geohashes.len() {
-                // TODO - handle error
                 index.add_geohash(&block_index.geohashes[j], block_id,
-                    block_index.end_indices[j] - block_index.start_indices[j]);
+                    block_index.end_indices[j]
+                        - block_index.start_indices[j])?;
             }
         }
 
-        response.encode_length_delimited(resp_buf).unwrap();
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 }
 
 impl Protocol for NahfsProtocol {
     fn process(&self, user: &Option<String>, method: &str,
-            req_buf: &[u8], resp_buf: &mut Vec<u8>) {
+            req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
-            "indexReport" => self.index_report(req_buf, resp_buf),
+            "indexReport" => self.index_report(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),
         }
+
+        Ok(())
     }
 }
