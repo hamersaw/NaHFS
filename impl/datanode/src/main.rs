@@ -69,8 +69,6 @@ fn main() {
     info!("started transfer server");
 
     // initialize NamenodeProtocol
-    let dr_proto = protocol::to_datanode_registration_proto(&config);
-    let ds_proto = protocol::to_datanode_storage_proto(&config);
     let mut namenode_protocol= NamenodeProtocol::new(config);
     info!("initialized namenode protocol");
 

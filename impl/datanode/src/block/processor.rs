@@ -3,7 +3,6 @@ use shared::NahError;
 
 use super::{BlockOperation, Operation};
 
-use std::collections::BTreeMap;
 use std::thread::JoinHandle;
 
 pub struct BlockProcessor {
@@ -70,6 +69,8 @@ impl BlockProcessor {
         Ok(())
     }
 
+    /*
+    // TODO - unused
     pub fn stop(mut self) {
         // send shutdown messages
         for _ in 0..self.join_handles.len() {
@@ -81,7 +82,7 @@ impl BlockProcessor {
             let join_handle = self.join_handles.pop().unwrap();
             join_handle.join().unwrap();
         }
-    }
+    }*/
 }
 
 fn process_loop(operation_sender: &Sender<BlockOperation>,

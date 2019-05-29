@@ -1,4 +1,3 @@
-use crossbeam_channel::{Receiver, Sender, SendError};
 use prost::Message;
 use shared::NahError;
 
@@ -85,7 +84,7 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
         match parse_metadata(observation, &delimiter_indices) {
             Ok((geohash, timestamp)) => {
                 // index observation
-                let mut indices = geohashes.entry(geohash)
+                let indices = geohashes.entry(geohash)
                     .or_insert(Vec::new());
                 indices.push((start_index, end_index));
 
@@ -132,7 +131,7 @@ fn read_block(block_id: u64, offset: u64, data_directory: &str,
     // open file
     let mut file = File::open(&format!("{}/blk_{}",
         data_directory, block_id))?;
-    file.seek(SeekFrom::Start(offset));
+    file.seek(SeekFrom::Start(offset))?;
 
     // read contents
     file.read_exact(buf)?;
@@ -192,7 +191,7 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
                         println!("offset bytes: {}", byte_count);
                     } else {
                         // read index_length bytes into buf
-                        file.seek(SeekFrom::Start(start_index));
+                        file.seek(SeekFrom::Start(start_index))?;
                         file.read_exact(&mut buf[buf_index..
                             buf_index + (index_length as usize)])?;
 
@@ -218,7 +217,7 @@ fn write_block(block_op: &BlockOperation,
     let now = SystemTime::now();
 
     // write block and compute block metadata
-    let mut file = File::create(format!("{}/blk_{}", 
+    let file = File::create(format!("{}/blk_{}", 
         data_directory, block_op.block_id))?;
     let mut buf_writer = BufWriter::new(file);
 
@@ -261,9 +260,9 @@ fn write_block(block_op: &BlockOperation,
 
     // write block metadata
     let mut buf = Vec::new();
-    bm_proto.encode_length_delimited(&mut buf);
+    bm_proto.encode_length_delimited(&mut buf)?;
 
-    let mut meta_file = File::create(format!("{}/blk_{}.meta", 
+    let meta_file = File::create(format!("{}/blk_{}.meta", 
         data_directory, block_op.block_id))?;
     let mut meta_buf_writer = BufWriter::new(meta_file);
     meta_buf_writer.write_all(&buf)?;

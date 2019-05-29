@@ -1,4 +1,4 @@
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use byteorder::{ReadBytesExt, BigEndian};
 use communication::StreamHandler;
 use hdfs_comm::block::{BlockInputStream, BlockOutputStream};
 use hdfs_protos::hadoop::hdfs::{BlockOpResponseProto, ChecksumProto, OpReadBlockProto, OpWriteBlockProto, ReadOpChecksumInfoProto, Status};
@@ -78,9 +78,9 @@ impl StreamHandler for TransferStreamHandler {
                     // recv block
                     let mut buf = Vec::new();
                     let mut block_stream = BlockInputStream::new(
-                        stream.try_clone().unwrap(),
+                        stream.try_clone()?,
                         chunk_size_bytes, chunks_per_packet);
-                    block_stream.read_to_end(&mut buf);
+                    block_stream.read_to_end(&mut buf)?;
                     block_stream.close();
 
                     debug!("read {} bytes into block", buf.len());
@@ -88,12 +88,18 @@ impl StreamHandler for TransferStreamHandler {
                     // create Block struct
                     let block_id = owb_proto.header.base_header.block.block_id;
  
-                    // parse block_id
+                    // process block_id
                     let processor = self.processor.read().unwrap();
-                    if block_id & FIRST_BIT_U64 == FIRST_BIT_U64 {
-                        processor.add_index(block_id, buf);
+                    let write_result = if block_id & FIRST_BIT_U64
+                            == FIRST_BIT_U64 {
+                        processor.add_index(block_id, buf)
                     } else {
-                        processor.add_write(block_id, buf);
+                        processor.add_write(block_id, buf)
+                    };
+
+                    if let Err(e) = write_result {
+                        warn!("processor write block {}: {}",
+                            block_id, e);
                     }
                 },
                 81 => {
@@ -147,7 +153,7 @@ impl StreamHandler for TransferStreamHandler {
                     let mut block_stream = BlockOutputStream::new(
                         stream.try_clone().unwrap(),
                         chunk_size_bytes, chunks_per_packet);
-                    block_stream.write_all(&mut buf);
+                    block_stream.write_all(&mut buf)?;
                     block_stream.close();
 
                     debug!("wrote {} bytes from block", buf.len());

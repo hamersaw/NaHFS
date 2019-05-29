@@ -1,10 +1,10 @@
 use crossbeam_channel::{self, Receiver, Sender};
 use hdfs_comm::rpc::Client;
-use hdfs_protos::hadoop::hdfs::{DatanodeStorageProto, StorageReportProto};
-use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, DatanodeRegistrationProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
+use hdfs_protos::hadoop::hdfs::StorageReportProto;
+use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
 use prost::Message;
 use shared::NahError;
-use shared::protos::{BlockIndexProto, BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
+use shared::protos::{BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
 
 use crate::Config;
 
@@ -87,6 +87,8 @@ impl NamenodeProtocol {
         Ok(())
     }
 
+    /*
+    // TODO - unused
     pub fn stop(mut self) {
         if let Some(join_handle) = self.join_handle {
             self.shutdown_channel.0.send(true);
@@ -94,7 +96,7 @@ impl NamenodeProtocol {
         }
 
         self.join_handle = None;
-    }
+    }*/
 }
 
 fn block_report(config: &Config) -> Result<(), NahError> {
@@ -149,7 +151,7 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
     sr_proto.storage = Some(super::to_datanode_storage_proto(config));
     sr_proto.failed = Some(false);
 
-    let (mut used, mut dfs_used, mut available, mut capacity) = (0, 0, 0, 0);
+    let (mut used, mut dfs_used, mut available) = (0, 0, 0);
     if cfg!(target_os = "linux") {
         match Command::new("df").arg(&config.data_directory).output() {
             Ok(output) => {
