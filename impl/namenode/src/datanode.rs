@@ -17,12 +17,14 @@ pub struct DatanodeState {
 }
 
 pub struct DatanodeStore {
+    state_queue_length: usize,
     map: HashMap<String, Datanode>,
 }
 
 impl DatanodeStore {
-    pub fn new() -> DatanodeStore {
+    pub fn new(state_queue_length: usize) -> DatanodeStore {
         DatanodeStore {
+            state_queue_length: state_queue_length,
             map: HashMap::new(),
         }
     }
@@ -96,7 +98,7 @@ impl DatanodeStore {
             datanode.states.push(state);
 
             // remove old states
-            while datanode.states.len() > 10 { // TODO - parameterize
+            while datanode.states.len() > self.state_queue_length {
                 datanode.states.remove(0);
             }
         }

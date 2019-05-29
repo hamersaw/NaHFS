@@ -35,7 +35,8 @@ fn main() {
     info!("initialized block store");
 
     // initialize DatanodeStore
-    let datanode_store = Arc::new(RwLock::new(DatanodeStore::new()));
+    let datanode_store = Arc::new(RwLock::new(
+        DatanodeStore::new(config.state_queue_length)));
     info!("initialized datanode store");
 
     // initialize FileStore
@@ -47,7 +48,8 @@ fn main() {
     info!("initialized index");
  
     // initialize StorageStore
-    let storage_store = Arc::new(RwLock::new(StorageStore::new()));
+    let storage_store = Arc::new(RwLock::new(
+        StorageStore::new(config.state_queue_length)));
     info!("initialized storage store");
     
     // start TcpListener
@@ -104,4 +106,6 @@ struct Config {
     thread_count: u8,
     #[structopt(short="w", long="socket_wait_ms", default_value="50")]
     socket_wait_ms: u64,
+    #[structopt(short="s", long="state_queue_length", default_value="10")]
+    state_queue_length: usize,
 }

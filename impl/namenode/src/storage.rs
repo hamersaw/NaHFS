@@ -16,12 +16,14 @@ pub struct StorageState {
 
 pub struct StorageStore {
     map: HashMap<String, Storage>,
+    state_queue_length: usize,
 }
 
 impl StorageStore {
-    pub fn new() -> StorageStore {
+    pub fn new(state_queue_length: usize) -> StorageStore {
         StorageStore {
             map: HashMap::new(),
+            state_queue_length: state_queue_length,
         }
     }
 
@@ -53,7 +55,7 @@ impl StorageStore {
         storage.states.push(state);
 
         // remove old states
-        while storage.states.len() > 10 { // TODO - parameterize
+        while storage.states.len() > self.state_queue_length {
             storage.states.remove(0);
         }
     }
