@@ -89,14 +89,12 @@ fn to_hdfs_file_status_proto(file: &File,
 
     // iterate over blocks to compute file length
     hfs_proto.length = 0;
-    for (block_id, query_result) in validate_block_ids(
-            &file.blocks, block_store, index, query) {
-        match query_result {
-            Some((_, length)) => hfs_proto.length += length as u64,
-            None => {
-                let block = block_store.get_block(&block_id).unwrap();
-                hfs_proto.length += block.length;
-            },
+    for (block_id, query_result) in query_blocks(&file.blocks, index, query) {
+        if let Some(block) = block_store.get_block(&block_id) {
+            match query_result {
+                Some((_, length)) => hfs_proto.length += length as u64,
+                None => hfs_proto.length += block.length,
+            }
         }
     }
 
@@ -132,56 +130,51 @@ fn to_located_blocks_proto(file: &File,
     let mut lbs_proto = LocatedBlocksProto::default();
     let blocks = &mut lbs_proto.blocks;
 
-    let (mut length, complete) = (0, true);
-    let valid_block_ids = validate_block_ids(&file.blocks,
-        block_store, index, query);
-    for (block_id, query_result) in valid_block_ids {
-        let block = block_store.get_block(&block_id).unwrap();
+    let (mut length, mut complete) = (0, true);
+    for (block_id, query_result) in query_blocks(&file.blocks, index, query) {
+        if let Some(block) = block_store.get_block(&block_id) {
+            // populate LocatedBlockProto
+            let mut lb_proto = LocatedBlockProto::default();
+            let eb_proto = &mut lb_proto.b;
 
-        // populate LocatedBlockProto
-        let mut lb_proto = LocatedBlockProto::default();
-        let eb_proto = &mut lb_proto.b;
-
-        // populate ExtendedBlockProto
-        match query_result {
-            Some((query_block_id, length)) => {
-                eb_proto.block_id = query_block_id;
-                eb_proto.num_bytes = Some(length as u64);
-            },
-            None => {
-                eb_proto.block_id = block.id;
-                eb_proto.num_bytes = Some(block.length);
-            },
-        }
-
-        // populate LocatedBlockProto
-        lb_proto.offset = length;
-        lb_proto.corrupt = false;
-
-        // populate locs
-        for datanode_id in &block.locations {
-            if let Some(datanode) =
-                    datanode_store.get_datanode(datanode_id) {
-                lb_proto.locs.push(to_datanode_info_proto(
-                    datanode, Some(storage_store)));
+            // populate ExtendedBlockProto
+            match query_result {
+                Some((query_block_id, length)) => {
+                    eb_proto.block_id = query_block_id;
+                    eb_proto.num_bytes = Some(length as u64);
+                },
+                None => {
+                    eb_proto.block_id = block.id;
+                    eb_proto.num_bytes = Some(block.length);
+                },
             }
-        }
 
-        // populate storages
-        for storage_id in &block.storage_ids {
-            lb_proto.storage_types.push(0);
-            lb_proto.storage_i_ds.push(storage_id.to_string());
-            lb_proto.is_cached.push(false);
-        }
+            // populate LocatedBlockProto
+            lb_proto.offset = length;
+            lb_proto.corrupt = false;
 
-        length += eb_proto.num_bytes.unwrap(); // increment file length
-        blocks.push(lb_proto);
+            // populate locs
+            for datanode_id in &block.locations {
+                if let Some(datanode) =
+                        datanode_store.get_datanode(datanode_id) {
+                    lb_proto.locs.push(to_datanode_info_proto(
+                        datanode, Some(storage_store)));
+                }
+            }
 
-        /*} else {
-            // TODO - figure out if file is complete
+            // populate storages
+            for storage_id in &block.storage_ids {
+                lb_proto.storage_types.push(0);
+                lb_proto.storage_i_ds.push(storage_id.to_string());
+                lb_proto.is_cached.push(false);
+            }
+
+            length += eb_proto.num_bytes.unwrap(); // increment file length
+            blocks.push(lb_proto);
+        } else {
             // block_id not found -> file not complete
             complete = false;
-        }*/
+        }
     }
 
     lbs_proto.file_length = length;
@@ -190,9 +183,8 @@ fn to_located_blocks_proto(file: &File,
     lbs_proto
 }
 
-fn validate_block_ids(block_ids: &Vec<u64>, block_store: &BlockStore,
-        index: &Index, query: &Option<(&str, RadixQuery)>)
-        -> Vec<(u64, Option<(u64, u32)>)> {
+fn query_blocks(block_ids: &Vec<u64>, index: &Index, 
+        query: &Option<(&str, RadixQuery)>) -> Vec<(u64, Option<(u64, u32)>)> {
     let mut blocks = Vec::new();
 
     match query {
@@ -223,9 +215,7 @@ fn validate_block_ids(block_ids: &Vec<u64>, block_store: &BlockStore,
         None => {
             // if no query -> return blocks that exist in BlockStore
             for block_id in block_ids {
-                if let Some(_) = block_store.get_block(block_id) {
-                    blocks.push((*block_id, None));
-                }
+                blocks.push((*block_id, None));
             }
         },
     }
