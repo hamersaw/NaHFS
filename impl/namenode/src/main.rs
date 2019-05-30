@@ -20,7 +20,10 @@ use index::Index;
 use protocol::{ClientNamenodeProtocol, DatanodeProtocol, NahfsProtocol};
 use storage::StorageStore;
 
+use std::fs::File;
+use std::io::BufReader;
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 fn main() {
@@ -40,7 +43,33 @@ fn main() {
     info!("initialized datanode store");
 
     // initialize FileStore
-    let file_store = Arc::new(RwLock::new(FileStore::new()));
+    let path = Path::new(&config.persist_path);
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                error!("failed to create data directory: {}", e);
+                return;
+            }
+        }
+    }
+
+    let file_store_result = match path.exists() {
+        true => {
+            let file = File::open(&config.persist_path).unwrap();
+            let buf_reader = BufReader::new(file);
+            FileStore::from(buf_reader)
+        },
+        false => Ok(FileStore::new()),
+    };
+
+    let file_store = match file_store_result {
+        Ok(file_store) => Arc::new(RwLock::new(file_store)),
+        Err(e) => {
+            error!("failed to initialize file store: {}", e);
+            return;
+        }
+    };
+
     info!("initialized file store");
 
     // initialize Index
@@ -76,12 +105,13 @@ fn main() {
     protocols.register("org.apache.hadoop.hdfs.protocol.ClientProtocol",
         Box::new(client_namenode_protocol));
 
-    let datanode_protocol = DatanodeProtocol::new(
-        block_store.clone(), datanode_store.clone(), storage_store.clone());
+    let datanode_protocol = DatanodeProtocol::new(block_store.clone(),
+        datanode_store.clone(), storage_store.clone());
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
         Box::new(datanode_protocol));
 
-    let nahfs_protocol = NahfsProtocol::new(index.clone());
+    let nahfs_protocol = NahfsProtocol::new(file_store.clone(),
+        index.clone(), &config.persist_path);
     protocols.register("com.bushpath.nahfs.protocol.NahfsProtocol",
         Box::new(nahfs_protocol));
  
@@ -98,6 +128,8 @@ fn main() {
 
 #[derive(Debug, StructOpt)]
 struct Config {
+    #[structopt(name="PERSIST_PATH")]
+    persist_path: String,
     #[structopt(short="i", long="ip_address", default_value="127.0.0.1")]
     ip_address: String,
     #[structopt(short="p", long="port", default_value="9000")]

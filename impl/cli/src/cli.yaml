@@ -1,0 +1,28 @@
+name: cli
+version: "1.0"
+author: "Daniel Rammer <hamersaw@bushpath.com>"
+about: ""
+args:
+    - ip_address:
+        short: i
+        long: ip_address
+        default_value: "127.0.0.1"
+        takes_value: true
+        help: ip address of namenode
+    - port:
+        short: p
+        long: port
+        default_value: "9000"
+        takes_value: true
+        help: port of namenode
+subcommands:
+    - index:
+        about: perform actions on namenode geospatial index
+        subcommands:
+            - view:
+                about: view statistics on geospatial index
+    - inode:
+        about: perform actions on namenode inode table
+        subcommands:
+            - persist:
+                about: persist inode table to disk

@@ -24,3 +24,9 @@ message IndexReportRequestProto {
 
 message IndexReportResponseProto {
 }
+
+message InodePersistRequestProto {
+}
+
+message InodePersistResponseProto {
+}

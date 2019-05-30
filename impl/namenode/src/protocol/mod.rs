@@ -176,7 +176,7 @@ fn to_located_blocks_proto(file: &File,
 
         length += eb_proto.num_bytes.unwrap(); // increment file length
         blocks.push(lb_proto);
-        //length += block.length;
+
         /*} else {
             // TODO - figure out if file is complete
             // block_id not found -> file not complete

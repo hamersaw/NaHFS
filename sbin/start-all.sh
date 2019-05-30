@@ -28,7 +28,8 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start namenode
-        RUST_LOG=debug $NAMENODE -i ${ARRAY[2]} -p ${ARRAY[3]} \
+        RUST_LOG=debug $NAMENODE $PROJECT_DIR/data/namenode.bin \
+            -i ${ARRAY[2]} -p ${ARRAY[3]} \
             > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 &
 
         echo $! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid

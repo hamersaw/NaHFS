@@ -1,4 +1,8 @@
+use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use shared::NahError;
+
 use std::collections::HashMap;
+use std::io::{Read, Write};
 
 pub struct File {
     pub inode: u64,
@@ -72,6 +76,87 @@ impl FileStore {
             children: children,
             parents: HashMap::new(),
         }
+    }
+
+    pub fn from(mut reader: impl Read) -> Result<FileStore, NahError> {
+        // read inodes
+        let mut inodes = HashMap::new();
+        for _ in 0..reader.read_u32::<BigEndian>()? {
+            // read file
+            let inode = reader.read_u64::<BigEndian>()?;
+            let mut name_buf = vec![0u8; reader.read_u8()? as usize];
+            reader.read_exact(&mut name_buf)?;
+            let name = String::from_utf8_lossy(&name_buf);
+
+            let file_type = reader.read_i32::<BigEndian>()?;
+            let permissions = reader.read_u32::<BigEndian>()?;
+            let mut owner_buf = vec![0u8; reader.read_u8()? as usize];
+            reader.read_exact(&mut owner_buf)?;
+            let owner = String::from_utf8_lossy(&owner_buf);
+            let mut group_buf = vec![0u8; reader.read_u8()? as usize];
+            reader.read_exact(&mut group_buf)?;
+            let group = String::from_utf8_lossy(&group_buf);
+            let mut storage_policy_buf
+                = vec![0u8; reader.read_u8()? as usize];
+            let storage_policy = match storage_policy_buf.len() {
+                0 => None,
+                _ => {
+                    reader.read_exact(&mut storage_policy_buf)?;
+                    Some(String::from_utf8_lossy(&storage_policy_buf).to_string())
+                },
+            };
+
+            let mut blocks = Vec::new();
+            for _ in 0..reader.read_u32::<BigEndian>()? {
+                blocks.push(reader.read_u64::<BigEndian>()?);
+            }
+            let block_replication = reader.read_u32::<BigEndian>()?;
+            let block_size = reader.read_u64::<BigEndian>()?;
+
+            let file = File {
+                inode: inode,
+                name: name.to_string(),
+                file_type: file_type,
+                permissions: permissions,
+                owner: owner.to_string(),
+                group: group.to_string(),
+                storage_policy: storage_policy,
+                blocks: blocks,
+                block_replication: block_replication,
+                block_size: block_size,
+            };
+
+            inodes.insert(inode, file);
+        }
+
+        // read children
+        let mut children = HashMap::new();
+        for _ in 0..reader.read_u32::<BigEndian>()? {
+            let key = reader.read_u64::<BigEndian>()?;
+            let mut vec = Vec::new();
+            for _ in 0..reader.read_u32::<BigEndian>()? {
+                let value = reader.read_u64::<BigEndian>()?;
+                vec.push(value);
+            }
+
+            children.insert(key, vec);
+        }
+
+        // read parents
+        let mut parents = HashMap::new();
+        for _ in 0..reader.read_u32::<BigEndian>()? {
+            let key = reader.read_u64::<BigEndian>()?;
+            let value = reader.read_u64::<BigEndian>()?;
+            parents.insert(key, value);
+        }
+
+        Ok(
+            FileStore {
+                inodes: inodes,
+                children: children,
+                parents: parents,
+            }
+        )
     }
 
     pub fn create(&mut self, path: &str, permissions: u32, owner: &str,
@@ -279,6 +364,58 @@ impl FileStore {
 
         let mut file = self.inodes.get_mut(&inode).unwrap();
         file.storage_policy = Some(storage_policy.to_string());
+    }
+
+    pub fn write_to(&self, mut writer: impl Write)
+            -> Result<(), NahError> {
+        // write inodes      
+        writer.write_u32::<BigEndian>(self.inodes.len() as u32)?;
+        for (_, file) in self.inodes.iter() {
+            // write file
+            writer.write_u64::<BigEndian>(file.inode)?;
+            writer.write_u8(file.name.len() as u8)?;
+            writer.write_all(file.name.as_bytes())?;
+
+            writer.write_i32::<BigEndian>(file.file_type)?;
+            writer.write_u32::<BigEndian>(file.permissions)?;
+            writer.write_u8(file.owner.len() as u8)?;
+            writer.write_all(file.owner.as_bytes())?;
+            writer.write_u8(file.group.len() as u8)?;
+            writer.write_all(file.group.as_bytes())?;
+            match &file.storage_policy {
+                Some(storage_policy) => {
+                    writer.write_u8(storage_policy.len() as u8)?;
+                    writer.write_all(storage_policy.as_bytes())?;
+                },
+                None => writer.write_u8(0)?,
+            }
+
+            writer.write_u32::<BigEndian>(file.blocks.len() as u32)?;
+            for block in file.blocks.iter() {
+                writer.write_u64::<BigEndian>(*block)?;
+            }
+            writer.write_u32::<BigEndian>(file.block_replication)?;
+            writer.write_u64::<BigEndian>(file.block_size)?;
+        }
+
+        // write children
+        writer.write_u32::<BigEndian>(self.children.len() as u32)?;
+        for (key, vec) in self.children.iter() {
+            writer.write_u64::<BigEndian>(*key)?;
+            writer.write_u32::<BigEndian>(vec.len() as u32)?;
+            for value in vec.iter() {
+                writer.write_u64::<BigEndian>(*value)?;
+            }
+        }
+
+        // write parents
+        writer.write_u32::<BigEndian>(self.parents.len() as u32)?;
+        for (key, value) in self.parents.iter() {
+            writer.write_u64::<BigEndian>(*key)?;
+            writer.write_u64::<BigEndian>(*value)?;
+        }
+
+        Ok(())
     }
 }
 

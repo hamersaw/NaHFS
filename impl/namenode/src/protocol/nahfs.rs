@@ -1,20 +1,28 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
 use shared::NahError;
-use shared::protos::{IndexReportResponseProto, IndexReportRequestProto};
+use shared::protos::{IndexReportResponseProto, IndexReportRequestProto, InodePersistResponseProto, InodePersistRequestProto};
 
+use crate::file::FileStore;
 use crate::index::Index;
 
+use std::fs::File;
+use std::io::{BufWriter};
 use std::sync::{Arc, RwLock};
 
 pub struct NahfsProtocol {
+    file_store: Arc<RwLock<FileStore>>,
     index: Arc<RwLock<Index>>,
+    persist_path: String,
 }
 
 impl NahfsProtocol {
-    pub fn new(index: Arc<RwLock<Index>>) -> NahfsProtocol {
+    pub fn new(file_store: Arc<RwLock<FileStore>>,
+            index: Arc<RwLock<Index>>, persist_path: &str) -> NahfsProtocol {
         NahfsProtocol {
+            file_store: file_store,
             index: index,
+            persist_path: persist_path.to_string(),
         }
     }
 
@@ -41,6 +49,24 @@ impl NahfsProtocol {
         response.encode_length_delimited(resp_buf)?;
         Ok(())
     }
+
+    fn inode_persist(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+        let request = InodePersistRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let response = InodePersistResponseProto::default();
+
+        // process inode persist
+        debug!("inodePersist({:?})", request);
+        let file_store = self.file_store.read().unwrap();
+
+        let file = File::create(&self.persist_path)?;
+        let buf_writer = BufWriter::new(file);
+        file_store.write_to(buf_writer)?;
+
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
+    }
 }
 
 impl Protocol for NahfsProtocol {
@@ -48,6 +74,7 @@ impl Protocol for NahfsProtocol {
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
             "indexReport" => self.index_report(req_buf, resp_buf)?,
+            "inodePersist" => self.inode_persist(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),
         }
 
