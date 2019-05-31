@@ -1,15 +1,17 @@
+use byteorder::{BigEndian, WriteBytesExt};
+use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use prost::Message;
 use shared::{self, NahError};
+use shared::protos::{BlockIndexProto, BlockMetadataProto};
 
 mod processor;
 pub use processor::BlockProcessor;
-
-use shared::protos::{BlockIndexProto, BlockMetadataProto};
 
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufWriter, Read, SeekFrom, Write};
 use std::io::prelude::*;
+use std::net::TcpStream;
 use std::time::SystemTime;
 
 pub enum Operation {
@@ -22,17 +24,21 @@ pub struct BlockOperation {
     operation: Operation,
     block_id: u64,
     data: Vec<u8>, 
+    replicas: Vec<DatanodeIdProto>,
+    bm_proto: BlockMetadataProto,
     timestamps: Option<(u64, u64)>,
     index: Option<BTreeMap<String, Vec<(usize, usize)>>>,
 }
 
 impl BlockOperation {
-    pub fn new(operation: Operation, block_id: u64,
-            data: Vec<u8>) -> BlockOperation {
+    pub fn new(operation: Operation, block_id: u64, data: Vec<u8>,
+            replicas: Vec<DatanodeIdProto>) -> BlockOperation {
         BlockOperation {
             operation: operation,
             block_id: block_id,
             data: data,
+            replicas: replicas,
+            bm_proto: BlockMetadataProto::default(),
             timestamps: None,
             index: None,
         }
@@ -201,11 +207,60 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
 }
 
 fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
-    println!("TODO - TRANSFER BLOCK: {}", block_op.block_id);
+    let now = SystemTime::now();
+
+    // iterate over replicas
+    for di_proto in block_op.replicas.iter() {
+        println!("TODO - transfer block {} to {}:{}",
+            block_op.block_id, di_proto.ip_addr, di_proto.xfer_port);
+
+        // open socket
+        match TcpStream::connect(&format!("{}:{}",
+                di_proto.ip_addr, di_proto.xfer_port)) {
+            Ok(stream) => {
+                // write version and op
+                let mut buf_writer =
+                    BufWriter::new(stream.try_clone().unwrap());
+                buf_writer.write_u16::<BigEndian>(28)?;
+                buf_writer.write_u8(82)?;
+
+                // write block metadata
+                let mut buf = Vec::new();
+                block_op.bm_proto.encode_length_delimited(&mut buf)?;
+                buf_writer.write_all(&buf)?;
+                buf_writer.flush()?;
+
+                // write block
+                if let (Some(block_index), Some((_, _)))
+                        = (&block_op.index, block_op.timestamps) {
+                    // write indexed data
+                    for (_, indices) in block_index {
+                        for (start_index, end_index) in indices {
+                            buf_writer.write_all(
+                                &block_op.data[*start_index..*end_index])?;
+                        }
+                    }
+                } else {
+                    // write data
+                    buf_writer.write_all(&block_op.data)?;
+                }
+
+                buf_writer.flush()?;
+            },
+            Err(e) => warn!("replicate block {} to node {} {}:{}: {}",
+                block_op.block_id, di_proto.datanode_uuid,
+                di_proto.ip_addr, di_proto.xfer_port, e),
+        }
+    }
+
+    let elapsed = now.elapsed().unwrap();
+    debug!("transfered block {} in {}.{}s", block_op.block_id,
+        elapsed.as_secs(), elapsed.subsec_millis());
+
     Ok(())
 }
 
-fn write_block(block_op: &BlockOperation,
+fn write_block(block_op: &mut BlockOperation,
         data_directory: &str) -> Result<(), NahError> {
     let now = SystemTime::now();
 
@@ -214,7 +269,7 @@ fn write_block(block_op: &BlockOperation,
         data_directory, block_op.block_id))?;
     let mut buf_writer = BufWriter::new(file);
 
-    let mut bm_proto = BlockMetadataProto::default();
+    let bm_proto = &mut block_op.bm_proto;
     bm_proto.block_id = block_op.block_id;
 
     if let (Some(block_index), Some((start_timestamp, end_timestamp)))

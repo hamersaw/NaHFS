@@ -1,8 +1,9 @@
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{BigEndian, ReadBytesExt};
 use communication::StreamHandler;
 use hdfs_comm::block::{BlockInputStream, BlockOutputStream};
 use hdfs_protos::hadoop::hdfs::{BlockOpResponseProto, ChecksumProto, OpReadBlockProto, OpWriteBlockProto, ReadOpChecksumInfoProto, Status};
 use prost::Message;
+use shared::protos::BlockMetadataProto;
 
 use crate::block::BlockProcessor;
 
@@ -33,13 +34,13 @@ impl StreamHandler for TransferStreamHandler {
         loop {
             // read op
             let version = stream.read_u16::<BigEndian>()?;
-            let op_type = stream.read_u8()?;
-            
             if version != PROTOCOL_VERSION {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     "Unsupported protocol version"));
             }
+
+            let op_type = stream.read_u8()?;
 
             // calculate leb128 encoded op proto length
             let mut length = 0;
@@ -64,7 +65,7 @@ impl StreamHandler for TransferStreamHandler {
             match op_type {
                 80 => {
                     // parse write block op
-                    let owb_proto = OpWriteBlockProto::decode(&buf).unwrap();
+                    let owb_proto = OpWriteBlockProto::decode(&buf)?;
                     debug!("WriteBlock: {:?}", owb_proto);
 
                     // send op response
@@ -78,8 +79,8 @@ impl StreamHandler for TransferStreamHandler {
                     // recv block
                     let mut buf = Vec::new();
                     let mut block_stream = BlockInputStream::new(
-                        stream.try_clone()?,
-                        chunk_size_bytes, chunks_per_packet);
+                        stream.try_clone()?, chunk_size_bytes,
+                        chunks_per_packet);
                     block_stream.read_to_end(&mut buf)?;
                     block_stream.close();
 
@@ -87,14 +88,19 @@ impl StreamHandler for TransferStreamHandler {
 
                     // create Block struct
                     let block_id = owb_proto.header.base_header.block.block_id;
+
+                    let mut replicas = Vec::new();
+                    for di_proto in owb_proto.targets {
+                        replicas.push(di_proto.id);
+                    }
  
                     // process block_id
                     let processor = self.processor.read().unwrap();
                     let write_result = if block_id & FIRST_BIT_U64
                             == FIRST_BIT_U64 {
-                        processor.add_index(block_id, buf)
+                        processor.add_index(block_id, buf, replicas)
                     } else {
-                        processor.add_write(block_id, buf)
+                        processor.add_write(block_id, buf, replicas)
                     };
 
                     if let Err(e) = write_result {
@@ -104,7 +110,7 @@ impl StreamHandler for TransferStreamHandler {
                 },
                 81 => {
                     // parse read block op
-                    let orb_proto = OpReadBlockProto::decode(&buf).unwrap();
+                    let orb_proto = OpReadBlockProto::decode(&buf)?;
                     debug!("ReadBlock: {:?}", orb_proto);
 
                     let block_id = orb_proto.header.base_header.block.block_id;
@@ -151,12 +157,26 @@ impl StreamHandler for TransferStreamHandler {
  
                     // send block
                     let mut block_stream = BlockOutputStream::new(
-                        stream.try_clone()?,
-                        chunk_size_bytes, chunks_per_packet);
+                        stream.try_clone()?, chunk_size_bytes,
+                        chunks_per_packet);
                     block_stream.write_all(&mut buf)?;
                     block_stream.close();
 
                     debug!("wrote {} bytes from block", buf.len());
+                },
+                82 => {
+                    // parse block metadata op
+                    let bm_proto = BlockMetadataProto::decode(&buf)?;
+                    debug!("WriteReplica: {:?}", bm_proto);
+
+                    // recv block
+                    let mut buf = vec![0u8; bm_proto.length as usize];
+                    stream.read_exact(&mut buf)?;
+
+                    debug!("read {} bytes into transfer block",
+                        buf.len());
+
+                    // TODO - write buf and bm_metadata
                 },
                 _ => unimplemented!(),
             }

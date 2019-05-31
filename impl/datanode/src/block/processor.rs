@@ -1,4 +1,5 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
+use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use shared::NahError;
 
 use super::{BlockOperation, Operation};
@@ -27,15 +28,19 @@ impl BlockProcessor {
         }
     }
 
-    pub fn add_index(&self, block_id: u64, data: Vec<u8>)
+    pub fn add_index(&self, block_id: u64, data: Vec<u8>,
+            replicas: Vec<DatanodeIdProto>) 
             -> Result<(), SendError<BlockOperation>> {
-        let block_op = BlockOperation::new(Operation::INDEX, block_id, data);
+        let block_op = BlockOperation::new(Operation::INDEX,
+            block_id, data, replicas);
         self.operation_channel.0.send(block_op)
     }
 
-    pub fn add_write(&self, block_id: u64, data: Vec<u8>)
+    pub fn add_write(&self, block_id: u64, data: Vec<u8>,
+            replicas: Vec<DatanodeIdProto>)
             -> Result<(), SendError<BlockOperation>> {
-        let block_op = BlockOperation::new(Operation::WRITE, block_id, data);
+        let block_op = BlockOperation::new(Operation::WRITE,
+            block_id, data, replicas);
         self.operation_channel.0.send(block_op)
     }
 
@@ -103,7 +108,7 @@ fn process_loop(operation_sender: &Sender<BlockOperation>,
                     Operation::INDEX =>
                         super::index_block(&mut block_op),
                     Operation::WRITE => 
-                        super::write_block(&block_op, &data_directory),
+                        super::write_block(&mut block_op, &data_directory),
                     Operation::TRANSFER =>
                         super::transfer_block(&block_op),
                 };
