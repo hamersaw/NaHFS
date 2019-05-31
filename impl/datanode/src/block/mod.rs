@@ -211,9 +211,6 @@ fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
 
     // iterate over replicas
     for di_proto in block_op.replicas.iter() {
-        println!("TODO - transfer block {} to {}:{}",
-            block_op.block_id, di_proto.ip_addr, di_proto.xfer_port);
-
         // open socket
         match TcpStream::connect(&format!("{}:{}",
                 di_proto.ip_addr, di_proto.xfer_port)) {
