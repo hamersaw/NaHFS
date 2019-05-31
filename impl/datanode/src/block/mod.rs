@@ -26,8 +26,6 @@ pub struct BlockOperation {
     data: Vec<u8>, 
     replicas: Vec<DatanodeIdProto>,
     bm_proto: BlockMetadataProto,
-    timestamps: Option<(u64, u64)>,
-    index: Option<BTreeMap<String, Vec<(usize, usize)>>>,
 }
 
 impl BlockOperation {
@@ -39,8 +37,6 @@ impl BlockOperation {
             data: data,
             replicas: replicas,
             bm_proto: BlockMetadataProto::default(),
-            timestamps: None,
-            index: None,
         }
     }
 }
@@ -106,10 +102,39 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
             Err(e) => warn!("parse observation metadata: {}", e),
         }
     }
+ 
+    // copy indexed data
+    let mut indexed_data = Vec::new();
+    let mut bi_proto = BlockIndexProto::default();
+    {
+        let bi_geohashes = &mut bi_proto.geohashes;
+        let bi_start_indices = &mut bi_proto.start_indices;
+        let bi_end_indices = &mut bi_proto.end_indices;
 
-    // update block_op index
-    block_op.timestamps = Some((min_timestamp, max_timestamp));
-    block_op.index = Some(geohashes);
+        let mut buf_writer = BufWriter::new(&mut indexed_data);
+        let mut current_index = 0;
+        for (geohash, indices) in geohashes.iter() {
+            bi_geohashes.push(geohash.to_string());
+            bi_start_indices.push(current_index as u32); 
+
+            for (start_index, end_index) in indices {
+                buf_writer.write_all(
+                    &block_op.data[*start_index..*end_index])?;
+                current_index += end_index - start_index;
+            }
+
+            bi_end_indices.push(current_index as u32);
+        }
+        buf_writer.flush()?;
+    }
+
+    // set protobuf index variables
+    bi_proto.start_timestamp = min_timestamp;
+    bi_proto.end_timestamp = max_timestamp;
+    block_op.bm_proto.index = Some(bi_proto);
+
+    // set block data to indexed variant
+    block_op.data = indexed_data;
 
     let elapsed = now.elapsed().unwrap();
     debug!("indexed block {} in {}.{}s", block_op.block_id,
@@ -228,20 +253,7 @@ fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
                 buf_writer.flush()?;
 
                 // write block
-                if let (Some(block_index), Some((_, _)))
-                        = (&block_op.index, block_op.timestamps) {
-                    // write indexed data
-                    for (_, indices) in block_index {
-                        for (start_index, end_index) in indices {
-                            buf_writer.write_all(
-                                &block_op.data[*start_index..*end_index])?;
-                        }
-                    }
-                } else {
-                    // write data
-                    buf_writer.write_all(&block_op.data)?;
-                }
-
+                buf_writer.write_all(&block_op.data)?;
                 buf_writer.flush()?;
             },
             Err(e) => warn!("replicate block {} to node {} {}:{}: {}",
@@ -269,39 +281,9 @@ fn write_block(block_op: &mut BlockOperation,
     let bm_proto = &mut block_op.bm_proto;
     bm_proto.block_id = block_op.block_id;
 
-    if let (Some(block_index), Some((start_timestamp, end_timestamp)))
-            = (&block_op.index, block_op.timestamps) {
-        // write indexed data
-        let mut bi_proto = BlockIndexProto::default();
-        let geohashes = &mut bi_proto.geohashes;
-        let start_indices = &mut bi_proto.start_indices;
-        let end_indices = &mut bi_proto.end_indices;
-
-        let mut current_index = 0;
-        for (geohash, indices) in block_index {
-            geohashes.push(geohash.to_string());
-            start_indices.push(current_index as u32); 
-
-            for (start_index, end_index) in indices {
-                buf_writer.write_all(
-                    &block_op.data[*start_index..*end_index])?;
-                current_index += end_index - start_index;
-            }
-
-            end_indices.push(current_index as u32);
-        }
-
-        bi_proto.start_timestamp = start_timestamp;
-        bi_proto.end_timestamp = end_timestamp;
-
-        bm_proto.length = current_index as u64;
-        bm_proto.index = Some(bi_proto);
-    } else {
-        // write data
-        buf_writer.write_all(&block_op.data)?;
-
-        bm_proto.length = block_op.data.len() as u64;
-    }
+    // write data
+    buf_writer.write_all(&block_op.data)?;
+    bm_proto.length = block_op.data.len() as u64;
 
     // write block metadata
     let mut buf = Vec::new();
