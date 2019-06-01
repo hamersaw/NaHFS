@@ -1,10 +1,10 @@
 use byteorder::{BigEndian, WriteBytesExt};
-use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use prost::Message;
 use shared::{self, NahError};
 use shared::protos::{BlockIndexProto, BlockMetadataProto};
 
 mod processor;
+use processor::BlockOperation;
 pub use processor::BlockProcessor;
 
 use std::collections::BTreeMap;
@@ -13,33 +13,6 @@ use std::io::{BufWriter, Read, SeekFrom, Write};
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::time::SystemTime;
-
-pub enum Operation {
-    INDEX,
-    WRITE,
-    TRANSFER,
-}
-
-pub struct BlockOperation {
-    operation: Operation,
-    block_id: u64,
-    data: Vec<u8>, 
-    replicas: Vec<DatanodeIdProto>,
-    bm_proto: BlockMetadataProto,
-}
-
-impl BlockOperation {
-    pub fn new(operation: Operation, block_id: u64, data: Vec<u8>,
-            replicas: Vec<DatanodeIdProto>) -> BlockOperation {
-        BlockOperation {
-            operation: operation,
-            block_id: block_id,
-            data: data,
-            replicas: replicas,
-            bm_proto: BlockMetadataProto::default(),
-        }
-    }
-}
 
 fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
     let now = SystemTime::now();
@@ -134,10 +107,11 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
     block_op.bm_proto.index = Some(bi_proto);
 
     // set block data to indexed variant
+    block_op.bm_proto.length = indexed_data.len() as u64;
     block_op.data = indexed_data;
 
     let elapsed = now.elapsed().unwrap();
-    debug!("indexed block {} in {}.{}s", block_op.block_id,
+    debug!("indexed block {} in {}.{}s", block_op.bm_proto.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
     Ok(())
@@ -257,45 +231,40 @@ fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
                 buf_writer.flush()?;
             },
             Err(e) => warn!("replicate block {} to node {} {}:{}: {}",
-                block_op.block_id, di_proto.datanode_uuid,
+                block_op.bm_proto.block_id, di_proto.datanode_uuid,
                 di_proto.ip_addr, di_proto.xfer_port, e),
         }
     }
 
     let elapsed = now.elapsed().unwrap();
-    debug!("transfered block {} in {}.{}s", block_op.block_id,
+    debug!("transfered block {} in {}.{}s", block_op.bm_proto.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
     Ok(())
 }
 
-fn write_block(block_op: &mut BlockOperation,
+fn write_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
         data_directory: &str) -> Result<(), NahError> {
     let now = SystemTime::now();
 
-    // write block and compute block metadata
+    // write block
     let file = File::create(format!("{}/blk_{}", 
-        data_directory, block_op.block_id))?;
+        data_directory, bm_proto.block_id))?;
     let mut buf_writer = BufWriter::new(file);
 
-    let bm_proto = &mut block_op.bm_proto;
-    bm_proto.block_id = block_op.block_id;
-
-    // write data
-    buf_writer.write_all(&block_op.data)?;
-    bm_proto.length = block_op.data.len() as u64;
+    buf_writer.write_all(data)?;
 
     // write block metadata
     let mut buf = Vec::new();
     bm_proto.encode_length_delimited(&mut buf)?;
 
     let meta_file = File::create(format!("{}/blk_{}.meta", 
-        data_directory, block_op.block_id))?;
+        data_directory, bm_proto.block_id))?;
     let mut meta_buf_writer = BufWriter::new(meta_file);
     meta_buf_writer.write_all(&buf)?;
 
     let elapsed = now.elapsed().unwrap();
-    debug!("wrote block {} in {}.{}s", block_op.block_id,
+    debug!("wrote block {} and metadata in {}.{}s", bm_proto.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
     Ok(())

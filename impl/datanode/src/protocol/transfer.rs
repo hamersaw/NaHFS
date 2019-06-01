@@ -95,12 +95,16 @@ impl StreamHandler for TransferStreamHandler {
                     }
  
                     // process block_id
+                    let mut bm_proto = BlockMetadataProto::default();
+                    bm_proto.block_id = block_id;
+                    bm_proto.length = buf.len() as u64;
+
                     let processor = self.processor.read().unwrap();
                     let write_result = if block_id & FIRST_BIT_U64
                             == FIRST_BIT_U64 {
-                        processor.add_index(block_id, buf, replicas)
+                        processor.add_index(bm_proto, buf, replicas)
                     } else {
-                        processor.add_write(block_id, buf, replicas)
+                        processor.add_write(bm_proto, buf, replicas)
                     };
 
                     if let Err(e) = write_result {
@@ -176,7 +180,14 @@ impl StreamHandler for TransferStreamHandler {
                     debug!("read {} bytes into transfer block",
                         buf.len());
 
-                    // TODO - write buf and bm_metadata
+                    // write buf and BlockMetadataProto
+                    let block_id = bm_proto.block_id;
+                    let processor = self.processor.write().unwrap();
+                    if let Err(e) = processor.add_write(
+                            bm_proto, buf, Vec::new()) {
+                        warn!("processor write transfered block {}: {}",
+                            block_id, e);
+                    }
                 },
                 _ => unimplemented!(),
             }
