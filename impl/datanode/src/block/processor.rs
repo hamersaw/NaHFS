@@ -129,13 +129,26 @@ fn process_loop(operation_sender: &Sender<BlockOperation>,
                 // process block operation
                 let mut block_op = result.unwrap();
                 let process_result = match block_op.operation {
-                    Operation::INDEX =>
-                        super::index_block(&mut block_op),
+                    Operation::INDEX => {
+                        match super::index_block(&block_op.data, 
+                                &block_op.bm_proto) {
+                            Ok((indexed_data, bi_proto)) => {
+                                block_op.bm_proto.index =
+                                    Some(bi_proto);
+                                block_op.bm_proto.length =
+                                    indexed_data.len() as u64;
+                                block_op.data = indexed_data;
+                                Ok(())
+                            },
+                            Err(e) => Err(e),
+                        }
+                    },
                     Operation::WRITE => 
                         super::write_block(&block_op.data,
                             &block_op.bm_proto, &data_directory),
                     Operation::TRANSFER =>
-                        super::transfer_block(&block_op),
+                        super::transfer_block(&block_op.data,
+                            &block_op.replicas, &block_op.bm_proto),
                 };
 
                 // check for error

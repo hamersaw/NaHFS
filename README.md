@@ -13,7 +13,6 @@ Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file syste
 - optimize blockReport and indexReport to not send entire dataset every iteration
 #### datanode
 - handle data which doesn't fall on boundaries (currently removing first and last observations)
-- replicate blocks
 - parameterize hardcoded values
 #### namenode
 - parameterize unnecessarily hardcoded values

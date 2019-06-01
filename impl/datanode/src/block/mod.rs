@@ -1,10 +1,10 @@
 use byteorder::{BigEndian, WriteBytesExt};
+use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use prost::Message;
 use shared::{self, NahError};
 use shared::protos::{BlockIndexProto, BlockMetadataProto};
 
 mod processor;
-use processor::BlockOperation;
 pub use processor::BlockProcessor;
 
 use std::collections::BTreeMap;
@@ -14,7 +14,8 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::time::SystemTime;
 
-fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
+fn index_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto)
+        -> Result<(Vec<u8>, BlockIndexProto), NahError> {
     let now = SystemTime::now();
     let mut geohashes: BTreeMap<String, Vec<(usize, usize)>> =
         BTreeMap::new();
@@ -26,22 +27,22 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
     let mut delimiter_indices = Vec::new();
     let mut feature_count = 0;
 
-    while end_index < block_op.data.len() - 1 {
+    while end_index < data.len() - 1 {
         // initialize iteration variables
         start_index = end_index;
         delimiter_indices.clear();
 
         // compute observation boundaries
-        while end_index < block_op.data.len() - 1 {
+        while end_index < data.len() - 1 {
             end_index += 1;
-            match block_op.data[end_index] {
+            match data[end_index] {
                 44 => delimiter_indices.push(end_index - start_index),
                 10 => break, // NEWLINE
                 _ => (),
             }
         }
 
-        if block_op.data[end_index] == 10 {
+        if data[end_index] == 10 {
             end_index += 1; // if currently on NEWLINE -> increment
         }
 
@@ -55,7 +56,7 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
         }
 
         // process observation
-        let observation = &block_op.data[start_index..end_index];
+        let observation = &data[start_index..end_index];
         match parse_metadata(observation, &delimiter_indices) {
             Ok((geohash, timestamp)) => {
                 // index observation
@@ -92,7 +93,7 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
 
             for (start_index, end_index) in indices {
                 buf_writer.write_all(
-                    &block_op.data[*start_index..*end_index])?;
+                    &data[*start_index..*end_index])?;
                 current_index += end_index - start_index;
             }
 
@@ -101,20 +102,15 @@ fn index_block(block_op: &mut BlockOperation) -> Result<(), NahError> {
         buf_writer.flush()?;
     }
 
-    // set protobuf index variables
+    // set index timestamps
     bi_proto.start_timestamp = min_timestamp;
     bi_proto.end_timestamp = max_timestamp;
-    block_op.bm_proto.index = Some(bi_proto);
-
-    // set block data to indexed variant
-    block_op.bm_proto.length = indexed_data.len() as u64;
-    block_op.data = indexed_data;
 
     let elapsed = now.elapsed().unwrap();
-    debug!("indexed block {} in {}.{}s", block_op.bm_proto.block_id,
+    debug!("indexed block {} in {}.{}s", bm_proto.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
-    Ok(())
+    Ok((indexed_data, bi_proto))
 }
 
 fn parse_metadata(data: &[u8], commas: &Vec<usize>)
@@ -205,11 +201,12 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
     Ok(())
 }
 
-fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
+fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
+        bm_proto: &BlockMetadataProto) -> Result<(), NahError> {
     let now = SystemTime::now();
 
     // iterate over replicas
-    for di_proto in block_op.replicas.iter() {
+    for di_proto in replicas.iter() {
         // open socket
         match TcpStream::connect(&format!("{}:{}",
                 di_proto.ip_addr, di_proto.xfer_port)) {
@@ -222,22 +219,22 @@ fn transfer_block(block_op: &BlockOperation) -> Result<(), NahError> {
 
                 // write block metadata
                 let mut buf = Vec::new();
-                block_op.bm_proto.encode_length_delimited(&mut buf)?;
+                bm_proto.encode_length_delimited(&mut buf)?;
                 buf_writer.write_all(&buf)?;
                 buf_writer.flush()?;
 
                 // write block
-                buf_writer.write_all(&block_op.data)?;
+                buf_writer.write_all(&data)?;
                 buf_writer.flush()?;
             },
             Err(e) => warn!("replicate block {} to node {} {}:{}: {}",
-                block_op.bm_proto.block_id, di_proto.datanode_uuid,
+                bm_proto.block_id, di_proto.datanode_uuid,
                 di_proto.ip_addr, di_proto.xfer_port, e),
         }
     }
 
     let elapsed = now.elapsed().unwrap();
-    debug!("transfered block {} in {}.{}s", block_op.bm_proto.block_id,
+    debug!("transfered block {} in {}.{}s", bm_proto.block_id,
         elapsed.as_secs(), elapsed.subsec_millis());
 
     Ok(())
