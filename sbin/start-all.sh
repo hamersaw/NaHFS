@@ -28,13 +28,17 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start namenode
-        RUST_LOG=debug $NAMENODE $PROJECT_DIR/data/namenode.bin \
+        RUST_LOG=debug $NAMENODE ${ARRAY[4]} \
             -i ${ARRAY[2]} -p ${ARRAY[3]} \
-            > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 &
+                > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 &
 
         echo $! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid
     else
-        echo "TODO - remote start namenode"
+        # remote start namenode
+        ssh rammerd@${ARRAY[2]} -n "RUST_LOG=debug $NAMENODE \
+            ${ARRAY[4]} -i ${ARRAY[2]} -p ${ARRAY[3]} \
+                > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 & \
+            echo \$! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid"
     fi
 
     NAMENODE_IP=${ARRAY[2]}
@@ -53,12 +57,17 @@ while read LINE; do
     then
         # start datanode
         RUST_LOG=debug $DATANODE ${ARRAY[1]} ${ARRAY[1]} \
-            $PROJECT_DIR/data/${ARRAY[1]} -i ${ARRAY[2]} \
-            -p ${ARRAY[3]} -a $NAMENODE_IP -o $NAMENODE_PORT \
-            > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 &
+            ${ARRAY[4]} -i ${ARRAY[2]} -p ${ARRAY[3]}  \
+            -a $NAMENODE_IP -o $NAMENODE_PORT \
+                > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 &
 
         echo $! > $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid
     else
-        echo "TODO - remote start namenode"
+        echo "TODO - remote start datanode"
+        ssh rammerd@${ARRAY[2]} -n "RUST_LOG=debug $DATANODE \
+            ${ARRAY[1]} ${ARRAY[1]} ${ARRAY[4]} -i ${ARRAY[2]} \
+            -p ${ARRAY[3]} -a $NAMENODE_IP -o $NAMENODE_PORT \
+                > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 & \
+            echo \$! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid"
     fi
 done < <(grep datanode $HOSTS_PATH)

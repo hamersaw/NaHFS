@@ -1,6 +1,6 @@
-namenode    0       127.0.0.1   9000
-datanode    0       127.0.0.1   8020
-datanode    1       127.0.0.1   8021
-datanode    2       127.0.0.1   8022
-datanode    3       127.0.0.1   8023
-datanode    4       127.0.0.1   8024
+namenode    0       127.0.0.1   9000    /home/hamersaw/Development/NaHFS/data/namenode.bin
+datanode    0       127.0.0.1   8020    /home/hamersaw/Development/NaHFS/data/0
+datanode    1       127.0.0.1   8021    /home/hamersaw/Development/NaHFS/data/1
+datanode    2       127.0.0.1   8022    /home/hamersaw/Development/NaHFS/data/2
+datanode    3       127.0.0.1   8023    /home/hamersaw/Development/NaHFS/data/3
+datanode    4       127.0.0.1   8024    /home/hamersaw/Development/NaHFS/data/4
