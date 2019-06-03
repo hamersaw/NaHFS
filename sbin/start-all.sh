@@ -34,7 +34,7 @@ while read LINE; do
 
         echo $! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid
     else
-        # remote start namenode
+        # start remote namenode
         ssh rammerd@${ARRAY[2]} -n "RUST_LOG=debug $NAMENODE \
             ${ARRAY[4]} -i ${ARRAY[2]} -p ${ARRAY[3]} \
                 > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 & \
@@ -63,7 +63,7 @@ while read LINE; do
 
         echo $! > $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid
     else
-        echo "TODO - remote start datanode"
+        # start remote datanode
         ssh rammerd@${ARRAY[2]} -n "RUST_LOG=debug $DATANODE \
             ${ARRAY[1]} ${ARRAY[1]} ${ARRAY[4]} -i ${ARRAY[2]} \
             -p ${ARRAY[3]} -a $NAMENODE_IP -o $NAMENODE_PORT \
