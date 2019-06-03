@@ -26,8 +26,8 @@ while read LINE; do
         rm $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid
     else
         # stop remote namenode
-        ssh rammerd@${ARRAY[2]} -n "kill `cat $PROJECTDIR/log/namenode-${ARRAY[1]}.pid`; \
-            rm $PROJECTDIR/log/namenode-${ARRAY[1]}.pid"
+        ssh rammerd@${ARRAY[2]} -n "kill `cat $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid`; \
+            rm $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid"
     fi
 done < <(grep namenode $HOSTS_PATH)
 
@@ -46,7 +46,7 @@ while read LINE; do
         rm $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid
     else
         # stop remote datanode
-        ssh rammerd@${ARRAY[2]} -n "kill `cat $PROJECTDIR/log/datanode-${ARRAY[1]}.pid`; \
-            rm $PROJECTDIR/log/datanode-${ARRAY[1]}.pid"
+        ssh rammerd@${ARRAY[2]} -n "kill `cat $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid`; \
+            rm $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid"
     fi
 done < <(grep datanode $HOSTS_PATH)
