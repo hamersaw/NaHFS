@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::Read;
 use std::process::Command;
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 pub struct NamenodeProtocol {
     config: Config,
@@ -61,11 +61,14 @@ impl NamenodeProtocol {
 
         // start thread
         let join_handle = std::thread::spawn(move || {
+            let mut block_timestamp = 0;
+            let mut index_timestamp = 0;
             loop {
                 select! {
                     recv(block_report_tick) -> _ => {
-                        if let Err(e) = block_report(&config_clone) {
-                            warn!("block report failed: {}", e);
+                        match block_report(&config_clone, block_timestamp) {
+                            Ok(timestamp) => block_timestamp = timestamp,
+                            Err(e) => warn!("block report: {}", e),
                         }
                     },
                     recv(heartbeat_tick) -> _ => {
@@ -74,8 +77,9 @@ impl NamenodeProtocol {
                         }
                     },
                     recv(index_tick) -> _ => {
-                        if let Err(e) = index_report(&config_clone) {
-                            warn!("index report failed: {}", e);
+                        match index_report(&config_clone, index_timestamp) {
+                            Ok(timestamp) => index_timestamp = timestamp,
+                            Err(e) => warn!("index report: {}", e),
                         }
                     },
                     recv(shutdown_receiver) -> _ => break,
@@ -99,18 +103,28 @@ impl NamenodeProtocol {
     }*/
 }
 
-fn block_report(config: &Config) -> Result<(), NahError> {
+fn block_report(config: &Config, block_timestamp: u64)
+        -> Result<u64, NahError> {
     // initialize StorageBlockReportProto
     let mut sbr_proto = StorageBlockReportProto::default();
     sbr_proto.storage = super::to_datanode_storage_proto(config);;
 
     // read block metadata files
+    let mut max_timestamp = block_timestamp;
     let metadata_glob = format!("{}/*.meta", config.data_directory);
     let mut buf = Vec::new();
     for entry in glob::glob(&metadata_glob)? {
+        let mut file = File::open(entry?)?;
+
+        // validate file timestamp
+        let timestamp = get_file_timestamp(&file);
+        if timestamp <= block_timestamp {
+            continue;
+        }
+        max_timestamp = std::cmp::max(max_timestamp, timestamp);
+
         // read file into buffer
         buf.clear();
-        let mut file = File::open(entry?)?;
         file.read_to_end(&mut buf)?;
 
         // parse BlockMetadataProto
@@ -126,8 +140,8 @@ fn block_report(config: &Config) -> Result<(), NahError> {
         blocks.push(0u64);
     }
 
-    trace!("writing BlockReportRequest to {}:{}",
-        config.namenode_ip_address, config.namenode_port);
+    trace!("writing BlockReportRequest to {}:{} {:?}",
+        config.namenode_ip_address, config.namenode_port, sbr_proto);
 
     // initialize BlockReportRequestProto 
     let mut brr_proto = BlockReportRequestProto::default();
@@ -141,7 +155,7 @@ fn block_report(config: &Config) -> Result<(), NahError> {
     let _ = BlockReportResponseProto
         ::decode_length_delimited(resp_buf)?;
 
-    Ok(())
+    Ok(max_timestamp)
 }
 
 fn heartbeat(config: &Config) -> std::io::Result<()> {
@@ -202,8 +216,8 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
     pub volume_failure_summary: ::std::option::Option<VolumeFailureSummaryProto>,
     pub request_full_block_report_lease: ::std::option::Option<bool>,*/
 
-    trace!("writing HeartbeatRequest to {}:{}",
-        config.namenode_ip_address, config.namenode_port);
+    trace!("writing HeartbeatRequest to {}:{} {:?}",
+        config.namenode_ip_address, config.namenode_port, hr_proto);
 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
     let (_, resp_buf) = client.write_message("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol", "heartbeat", hr_proto)?;
@@ -214,19 +228,29 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
     Ok(())
 }
 
-fn index_report(config: &Config) -> Result<(), NahError> {
+fn index_report(config: &Config, index_timestamp: u64)
+        -> Result<u64, NahError> {
     // initialize IndexReportRequestProto
     let mut irr_proto = IndexReportRequestProto::default();
     let block_ids = &mut irr_proto.block_ids;
     let indices = &mut irr_proto.block_indices;
 
     // read block metadata files
+    let mut max_timestamp = index_timestamp;
     let metadata_glob = format!("{}/*.meta", config.data_directory);
     let mut buf = Vec::new();
     for entry in glob::glob(&metadata_glob)? {
+        let mut file = File::open(entry?)?;
+
+        // validate file timestamp
+        let timestamp = get_file_timestamp(&file);
+        if timestamp <= index_timestamp {
+            continue;
+        }
+        max_timestamp = std::cmp::max(max_timestamp, timestamp);
+ 
         // read file into buffer
         buf.clear();
-        let mut file = File::open(entry?)?;
         file.read_to_end(&mut buf)?;
 
         // parse BlockMetadataProto
@@ -241,11 +265,11 @@ fn index_report(config: &Config) -> Result<(), NahError> {
     }
 
     if block_ids.len() == 0 {
-        return Ok(());
+        return Ok(index_timestamp);
     }
 
-    trace!("writing IndexReportRequestProto to {}:{}",
-        config.namenode_ip_address, config.namenode_port);
+    trace!("writing IndexReportRequestProto to {}:{} {:?}",
+        config.namenode_ip_address, config.namenode_port, irr_proto);
 
     // write IndexReportRequestProto 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
@@ -255,5 +279,22 @@ fn index_report(config: &Config) -> Result<(), NahError> {
     let _ = IndexReportResponseProto
         ::decode_length_delimited(resp_buf)?;
 
-    Ok(())
+    Ok(max_timestamp)
+}
+
+fn get_file_timestamp(file: &File) -> u64 {
+    match file.metadata() {
+        Ok(metadata) => {
+            match metadata.modified() {
+                Ok(system_time) => {
+                    match system_time.duration_since(SystemTime::UNIX_EPOCH) {
+                        Ok(duration) => duration.as_secs(),
+                        Err(_) => 0,
+                    }
+                },
+                Err(_) => 0,
+            }
+        },
+        Err(_) => 0,
+    }
 }
