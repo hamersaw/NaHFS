@@ -27,6 +27,9 @@ fn index_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto)
     let mut delimiter_indices = Vec::new();
     let mut feature_count = 0;
 
+    let (mut cont_geohash, mut cont_start, mut cont_end)
+        = (String::from(""), 0, 0);
+
     while end_index < data.len() - 1 {
         // initialize iteration variables
         start_index = end_index;
@@ -59,10 +62,20 @@ fn index_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto)
         let observation = &data[start_index..end_index];
         match parse_metadata(observation, &delimiter_indices) {
             Ok((geohash, timestamp)) => {
-                // index observation
-                let indices = geohashes.entry(geohash)
-                    .or_insert(Vec::new());
-                indices.push((start_index, end_index));
+                if cont_geohash == geohash {
+                    cont_end = end_index;
+                } else if cont_end != cont_start {
+                    // index observation
+                    let indices = geohashes.entry(cont_geohash)
+                        .or_insert(Vec::new());
+                    indices.push((cont_start, cont_end));
+                    cont_start = cont_end;
+                    cont_geohash = geohash;
+                } else {
+                    cont_start = start_index;
+                    cont_end = end_index;
+                    cont_geohash = geohash;
+                }
 
                 // process timestamps
                 if timestamp < min_timestamp {
@@ -76,6 +89,11 @@ fn index_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto)
             Err(e) => warn!("parse observation metadata: {}", e),
         }
     }
+ 
+    // process final continuous interval
+    let indices = geohashes.entry(cont_geohash)
+        .or_insert(Vec::new());
+    indices.push((cont_start, cont_end));
  
     // copy indexed data
     let mut indexed_data = Vec::new();
