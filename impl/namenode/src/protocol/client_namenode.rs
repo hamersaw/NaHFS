@@ -1,5 +1,5 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
+use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, RenewLeaseResponseProto, RenewLeaseRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
 use radix::RadixQuery;
 use shared::NahError;
@@ -278,6 +278,17 @@ impl ClientNamenodeProtocol {
         Ok(())
     }
 
+    fn renew_lease(&self, req_buf: &[u8],
+              resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+        let request = RenewLeaseRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let response = RenewLeaseResponseProto::default();
+
+        debug!("renewLease({:?})", request);
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
+    }
+
     fn set_storage_policy(&self, req_buf: &[u8],
             resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
         let request = SetStoragePolicyRequestProto
@@ -312,6 +323,7 @@ impl Protocol for ClientNamenodeProtocol {
             "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf)?,
             "mkdirs" => self.mkdirs(user, req_buf, resp_buf)?,
             "rename" => self.rename(req_buf, resp_buf)?,
+            "renewLease" => self.renew_lease(req_buf, resp_buf)?,
             "setStoragePolicy" => self.set_storage_policy(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),
         }

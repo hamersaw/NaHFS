@@ -109,10 +109,10 @@ pub struct Config {
     processor_queue_length: u8,
     #[structopt(short="o", long="namenode_port", default_value="9000")]
     namenode_port: u16,
-    #[structopt(short="b", long="block_report", default_value="1000")]
+    #[structopt(short="b", long="block_report", default_value="5000")]
     block_report_ms: u64,
-    #[structopt(short="h", long="heartbeat", default_value="2000")]
+    #[structopt(short="h", long="heartbeat", default_value="2500")]
     heartbeat_ms: u64,
-    #[structopt(short="r", long="index_report", default_value="2000")]
+    #[structopt(short="r", long="index_report", default_value="10000")]
     index_report_ms: u64,
 }

@@ -134,7 +134,7 @@ struct Config {
     ip_address: String,
     #[structopt(short="p", long="port", default_value="9000")]
     port: u16,
-    #[structopt(short="t", long="thread_count", default_value="4")]
+    #[structopt(short="t", long="thread_count", default_value="8")]
     thread_count: u8,
     #[structopt(short="w", long="socket_wait_ms", default_value="50")]
     socket_wait_ms: u64,
