@@ -1,6 +1,6 @@
 syntax = 'proto2';
 
-package nahfs;
+package atlas;
 
 message BlockMetadataProto {
     required uint32 version = 1;

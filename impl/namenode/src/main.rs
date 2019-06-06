@@ -17,7 +17,7 @@ use block::BlockStore;
 use datanode::DatanodeStore;
 use file::FileStore;
 use index::Index;
-use protocol::{ClientNamenodeProtocol, DatanodeProtocol, NahfsProtocol};
+use protocol::{ClientNamenodeProtocol, DatanodeProtocol, AtlasProtocol};
 use storage::StorageStore;
 
 use std::fs::File;
@@ -110,10 +110,10 @@ fn main() {
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
         Box::new(datanode_protocol));
 
-    let nahfs_protocol = NahfsProtocol::new(file_store.clone(),
+    let atlas_protocol = AtlasProtocol::new(file_store.clone(),
         index.clone(), &config.persist_path);
-    protocols.register("com.bushpath.nahfs.protocol.NahfsProtocol",
-        Box::new(nahfs_protocol));
+    protocols.register("com.bushpath.atlas.protocol.AtlasProtocol",
+        Box::new(atlas_protocol));
  
     // start server
     if let Err(e) =

@@ -1,6 +1,6 @@
-# NaHFS
+# ATLAS
 ## DESCRIPTION
-Needle and Hand File System (NaHFS) is a distributed, spatio-temporal file system presenting an HDFS compatible interface.
+Atlas is a distributed, spatio-temporal file system presenting an HDFS compatible interface.
 
 ## COMMANDS
 #### HDFS

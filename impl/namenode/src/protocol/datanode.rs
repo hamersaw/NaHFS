@@ -1,7 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeResponseProto, RegisterDatanodeRequestProto};
 use prost::Message;
-use shared::NahError;
+use shared::AtlasError;
 
 use crate::block::BlockStore;
 use crate::datanode::DatanodeStore;
@@ -28,7 +28,7 @@ impl DatanodeProtocol {
     }
 
     fn block_report(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = BlockReportRequestProto
             ::decode_length_delimited(req_buf)?;
         let response = BlockReportResponseProto::default();
@@ -57,7 +57,7 @@ impl DatanodeProtocol {
     }
 
     fn heartbeat(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = HeartbeatRequestProto
             ::decode_length_delimited(req_buf)?;
         let response = HeartbeatResponseProto::default();
@@ -90,7 +90,7 @@ impl DatanodeProtocol {
     }
 
     fn register_datanode(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = RegisterDatanodeRequestProto
             ::decode_length_delimited(req_buf)?;
         let response = RegisterDatanodeResponseProto::default();

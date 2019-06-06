@@ -9,11 +9,11 @@ use crate::storage::StorageStore;
 
 mod client_namenode;
 mod datanode;
-mod nahfs;
+mod atlas;
 
 pub use client_namenode::ClientNamenodeProtocol;
 pub use datanode::DatanodeProtocol;
-pub use nahfs::NahfsProtocol;
+pub use atlas::AtlasProtocol;
 
 fn to_datanode_info_proto(datanode: &Datanode,
         storage_store: Option<&StorageStore>) -> DatanodeInfoProto {

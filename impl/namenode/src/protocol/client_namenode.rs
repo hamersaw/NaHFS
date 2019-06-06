@@ -2,7 +2,7 @@ use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, RenewLeaseResponseProto, RenewLeaseRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
 use radix::RadixQuery;
-use shared::NahError;
+use shared::AtlasError;
 
 use crate::block::BlockStore;
 use crate::datanode::DatanodeStore;
@@ -42,7 +42,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn add_block(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = AddBlockRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = AddBlockResponseProto::default();
@@ -89,7 +89,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn complete(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = CompleteRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = CompleteResponseProto::default();
@@ -107,7 +107,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn create(&self, user: &str, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = CreateRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = CreateResponseProto::default();
@@ -132,7 +132,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn get_block_locations(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = GetBlockLocationsRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = GetBlockLocationsResponseProto::default();
@@ -158,7 +158,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn get_file_info(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = GetFileInfoRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = GetFileInfoResponseProto::default();
@@ -181,7 +181,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn get_listing(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = GetListingRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = GetListingResponseProto::default();
@@ -226,7 +226,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn get_server_defaults(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = GetServerDefaultsRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = GetServerDefaultsResponseProto::default();
@@ -246,7 +246,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn mkdirs(&self, user: &str, req_buf: &[u8],
-              resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+              resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = MkdirsRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = MkdirsResponseProto::default();
@@ -263,7 +263,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn rename(&self, req_buf: &[u8],
-              resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+              resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = RenameRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = RenameResponseProto::default();
@@ -279,7 +279,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn renew_lease(&self, req_buf: &[u8],
-              resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+              resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = RenewLeaseRequestProto
             ::decode_length_delimited(req_buf)?;
         let response = RenewLeaseResponseProto::default();
@@ -290,7 +290,7 @@ impl ClientNamenodeProtocol {
     }
 
     fn set_storage_policy(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), NahError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = SetStoragePolicyRequestProto
             ::decode_length_delimited(req_buf).unwrap();
         let response = SetStoragePolicyResponseProto::default();
@@ -333,12 +333,12 @@ impl Protocol for ClientNamenodeProtocol {
 }
 
 fn parse_embedded_query_path(path: &str)
-        -> Result<(&str, Option<(&str, RadixQuery)>), NahError> {
+        -> Result<(&str, Option<(&str, RadixQuery)>), AtlasError> {
     let fields: Vec<&str> = path.split("+").collect();
     let query = match fields.len() {
         1 => None,
         2 => Some((fields[1], crate::index::parse_query(fields[1])?)),
-        _ => return Err(NahError::from("invalid embedded query path")),
+        _ => return Err(AtlasError::from("invalid embedded query path")),
     };
 
     Ok((fields[0], query))

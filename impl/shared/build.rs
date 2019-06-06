@@ -14,5 +14,5 @@ fn main() {
     config.out_dir(&output_directory);
   
     // compile protos
-    config.compile_protos(&["nahfs.proto"], &["protos/"]).unwrap();
+    config.compile_protos(&["atlas.proto"], &["protos/"]).unwrap();
 }

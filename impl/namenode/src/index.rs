@@ -1,21 +1,23 @@
 use radix::{self, RadixQuery, RadixTrie};
-use shared::{self, NahError};
+use shared::{self, AtlasError};
 
 use std::collections::HashMap;
 
 pub struct Index {
     trie: RadixTrie<Vec<(u64, u32)>>,
+    timestamps: HashMap<u64, (u64, u64)>,
 }
 
 impl Index {
     pub fn new() -> Index {
         Index {
             trie: RadixTrie::new(),
+            timestamps: HashMap::new(),
         }
     }
 
     pub fn add_geohash(&mut self, geohash: &str,
-            block_id: &u64, length: u32) -> Result<(), NahError> {
+            block_id: &u64, length: u32) -> Result<(), AtlasError> {
         let bytes = geohash.as_bytes();
         if let Some(blocks) = self.trie.get_mut(&bytes) {
             // check if block already exists
@@ -25,15 +27,27 @@ impl Index {
                 }
             }
 
-            debug!("adding geohash index {} : ({}, {})",
+            trace!("adding geohash index {} : ({}, {})",
                 geohash, block_id, length);
             blocks.push((*block_id, length));
         } else {
-            debug!("inserting new geohash index {} : ({}, {})",
+            trace!("inserting new geohash index {} : ({}, {})",
                 geohash, block_id, length);
-            //self.trie.insert(geohash,
             self.trie.insert(&bytes,
                 vec!((*block_id, length)))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn add_time_range(&mut self, start_timestamp: u64,
+            end_timestamp: u64, block_id: &u64) -> Result<(), AtlasError> {
+        // check if block already exists
+        if !self.timestamps.contains_key(block_id) {
+            trace!("inserting new timestamp index {} : ({}, {})",
+                block_id, start_timestamp, end_timestamp);
+            self.timestamps.insert(*block_id,
+                (start_timestamp, end_timestamp));
         }
 
         Ok(())
@@ -46,6 +60,8 @@ impl Index {
         for block_id in block_ids {
             geohash_map.insert(*block_id, (Vec::new(), Vec::new()));
         }
+
+        // TODO - only process blocks which fall into timestamp range
 
         // evaluate query
         query.evaluate(&self.trie, 
@@ -61,15 +77,6 @@ fn query_process(key: &Vec<u8>, value: &Vec<(u64, u32)>,
     for (block_id, length) in value {
         if let Some((geohashes, lengths)) = token.get_mut(&block_id) {
             // if token contains block id -> add geohash
-            /*let geohash_key = match key[key.len() - 1] {
-                x if x >= 48 && x <= 58 => x - 48,
-                x if x >= 97 && x <= 102 => x - 87,
-                _ => {
-                    warn!("invalid geohash character in {:?}", &key);
-                    continue;
-                },
-            };*/
-
             let c = key[key.len() - 1] as char;
             let geohash_key = match shared::geohash_char_to_value(c) {
                 Ok(geohash_key) => geohash_key,
@@ -85,7 +92,6 @@ fn query_process(key: &Vec<u8>, value: &Vec<(u64, u32)>,
     }
 }
 
-//pub fn parse_query(query_string: &str) -> Result<RadixQuery, NahError> {
-pub fn parse_query(query_string: &str) -> Result<RadixQuery, NahError> {
+pub fn parse_query(query_string: &str) -> Result<RadixQuery, AtlasError> {
     Ok(radix::parse_query(query_string)?)
 }

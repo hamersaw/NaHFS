@@ -1,5 +1,5 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
-use shared::NahError;
+use shared::AtlasError;
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -78,7 +78,7 @@ impl FileStore {
         }
     }
 
-    pub fn from(mut reader: impl Read) -> Result<FileStore, NahError> {
+    pub fn from(mut reader: impl Read) -> Result<FileStore, AtlasError> {
         // read inodes
         let mut inodes = HashMap::new();
         for _ in 0..reader.read_u32::<BigEndian>()? {
@@ -367,7 +367,7 @@ impl FileStore {
     }
 
     pub fn write_to(&self, mut writer: impl Write)
-            -> Result<(), NahError> {
+            -> Result<(), AtlasError> {
         // write inodes      
         writer.write_u32::<BigEndian>(self.inodes.len() as u32)?;
         for (_, file) in self.inodes.iter() {

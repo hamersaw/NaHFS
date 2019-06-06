@@ -1,6 +1,6 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
 use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
-use shared::NahError;
+use shared::AtlasError;
 use shared::protos::BlockMetadataProto;
 
 use std::thread::JoinHandle;
@@ -69,17 +69,17 @@ impl BlockProcessor {
     }
 
     pub fn read(&self, block_id: u64, offset: u64,
-            buf: &mut [u8]) -> Result<(), NahError> {
+            buf: &mut [u8]) -> Result<(), AtlasError> {
         super::read_block(block_id, offset, &self.data_directory, buf)
     }
 
     pub fn read_indexed(&self, block_id: u64, geohashes: &Vec<u8>,
-            offset: u64, buf: &mut [u8]) -> Result<(), NahError> {
+            offset: u64, buf: &mut [u8]) -> Result<(), AtlasError> {
         super::read_indexed_block(block_id,
             geohashes, offset, &self.data_directory, buf)
     }
 
-    pub fn start(&mut self) -> Result<(), NahError> {
+    pub fn start(&mut self) -> Result<(), AtlasError> {
         for _ in 0..self.thread_count {
             // clone variables
             let data_directory_clone = self.data_directory.clone();

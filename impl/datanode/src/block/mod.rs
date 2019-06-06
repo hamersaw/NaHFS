@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use prost::Message;
-use shared::{self, NahError};
+use shared::{self, AtlasError};
 use shared::protos::{BlockIndexProto, BlockMetadataProto};
 
 mod processor;
@@ -15,7 +15,7 @@ use std::net::TcpStream;
 use std::time::SystemTime;
 
 fn index_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto)
-        -> Result<(Vec<u8>, BlockIndexProto), NahError> {
+        -> Result<(Vec<u8>, BlockIndexProto), AtlasError> {
     let now = SystemTime::now();
     let mut geohashes: BTreeMap<String, Vec<(usize, usize)>> =
         BTreeMap::new();
@@ -132,7 +132,7 @@ fn index_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto)
 }
 
 fn parse_metadata(data: &[u8], commas: &Vec<usize>)
-        -> Result<(String, u64), NahError> {
+        -> Result<(String, u64), AtlasError> {
     let latitude_str = String::from_utf8_lossy(&data[0..commas[0]]);
     let longitude_str = String::from_utf8_lossy(&data[commas[0]+1..commas[1]]);
     let timestamp_str = String::from_utf8_lossy(&data[commas[2]+1..commas[3]-2]);
@@ -146,7 +146,7 @@ fn parse_metadata(data: &[u8], commas: &Vec<usize>)
 }
 
 fn read_block(block_id: u64, offset: u64, data_directory: &str,
-        buf: &mut [u8]) -> Result<(), NahError> {
+        buf: &mut [u8]) -> Result<(), AtlasError> {
     // open file
     let mut file = File::open(&format!("{}/blk_{}",
         data_directory, block_id))?;
@@ -159,7 +159,7 @@ fn read_block(block_id: u64, offset: u64, data_directory: &str,
 }
 
 fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
-        data_directory: &str, buf: &mut [u8]) -> Result<(), NahError> {
+        data_directory: &str, buf: &mut [u8]) -> Result<(), AtlasError> {
     // read block metadata
     let mut metadata_buf = Vec::new();
     let mut meta_file = File::open(format!("{}/blk_{}.meta", 
@@ -220,7 +220,7 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
 }
 
 fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
-        bm_proto: &BlockMetadataProto) -> Result<(), NahError> {
+        bm_proto: &BlockMetadataProto) -> Result<(), AtlasError> {
     let now = SystemTime::now();
 
     // iterate over replicas
@@ -259,7 +259,7 @@ fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
 }
 
 fn write_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
-        data_directory: &str) -> Result<(), NahError> {
+        data_directory: &str) -> Result<(), AtlasError> {
     let now = SystemTime::now();
 
     // write block
