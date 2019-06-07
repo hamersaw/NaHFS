@@ -3,7 +3,7 @@ use radix::RadixQuery;
 
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
-use crate::file::{File, FileStore};
+use crate::file::{File, FileStore, FileType};
 use crate::index::Index;
 use crate::storage::StorageStore;
 
@@ -77,8 +77,9 @@ fn to_hdfs_file_status_proto(file: &File,
         query: &Option<(&str, RadixQuery)>, block_store: &BlockStore,
         file_store: &FileStore, index: &Index) -> HdfsFileStatusProto {
     let mut hfs_proto = HdfsFileStatusProto::default();
-    hfs_proto.file_type = file.file_type;
-    hfs_proto.path = file_store.compute_path(file.inode).into_bytes();
+    hfs_proto.file_type = file.get_file_type_code();
+    hfs_proto.path =
+        file_store.compute_path(file.get_inode()).into_bytes();
     if let Some((query_string, _)) = query {
         hfs_proto.path.push('+' as u8);
 
@@ -89,36 +90,38 @@ fn to_hdfs_file_status_proto(file: &File,
 
     // iterate over blocks to compute file length
     hfs_proto.length = 0;
-    for (block_id, query_result) in query_blocks(&file.blocks, index, query) {
-        if let Some(block) = block_store.get_block(&block_id) {
-            match query_result {
-                Some((_, length)) => hfs_proto.length += length as u64,
-                None => hfs_proto.length += block.length,
+    if let FileType::Regular{blocks, replication, block_size} =
+            file.get_file_type() {
+        for (block_id, query_result) in query_blocks(blocks, index, query) {
+            if let Some(block) = block_store.get_block(&block_id) {
+                match query_result {
+                    Some((_, length)) => hfs_proto.length += length as u64,
+                    None => hfs_proto.length += block.length,
+                }
             }
         }
     }
 
     let fp_proto = &mut hfs_proto.permission;
-    fp_proto.perm = file.permissions;
+    fp_proto.perm = file.get_permissions();
 
-    hfs_proto.owner = file.owner.clone();
-    hfs_proto.group = file.group.clone();
+    hfs_proto.owner = file.get_owner().to_string();
+    hfs_proto.group = file.get_group().to_string();
 
-    match file.file_type {
-        1 =>  {
-            if let Some(children) = file_store.get_children(file.inode) {
+    match file.get_file_type() {
+        FileType::Directory =>  {
+            if let Some(children) = file_store.get_children(file.get_inode()) {
                 hfs_proto.children_num = Some(children.len() as i32);
             }
         },
-        2 => {
-            hfs_proto.block_replication = Some(file.block_replication);
-            hfs_proto.blocksize = Some(file.block_size);
+        FileType::Regular{blocks, replication, block_size} => {
+            hfs_proto.block_replication = Some(*replication);
+            hfs_proto.blocksize = Some(*block_size);
         },
-        _ => unimplemented!(),
     }
 
     // TODO - add locations if necessary
-    hfs_proto.file_id = Some(file.inode);
+    hfs_proto.file_id = Some(file.get_inode());
 
     hfs_proto
 }
@@ -128,52 +131,56 @@ fn to_located_blocks_proto(file: &File,
         datanode_store: &DatanodeStore, index: &Index,
         storage_store: &StorageStore) -> LocatedBlocksProto {
     let mut lbs_proto = LocatedBlocksProto::default();
-    let blocks = &mut lbs_proto.blocks;
+    let lb_proto_blocks = &mut lbs_proto.blocks;
 
     let (mut length, mut complete) = (0, true);
-    for (block_id, query_result) in query_blocks(&file.blocks, index, query) {
-        if let Some(block) = block_store.get_block(&block_id) {
-            // populate LocatedBlockProto
-            let mut lb_proto = LocatedBlockProto::default();
-            let eb_proto = &mut lb_proto.b;
+    if let FileType::Regular{blocks, replication, block_size} =
+            file.get_file_type() {
+        for (block_id, query_result) in query_blocks(blocks, index, query) {
+            if let Some(block) = block_store.get_block(&block_id) {
+                // populate LocatedBlockProto
+                let mut lb_proto = LocatedBlockProto::default();
+                let eb_proto = &mut lb_proto.b;
 
-            // populate ExtendedBlockProto
-            match query_result {
-                Some((query_block_id, length)) => {
-                    eb_proto.block_id = query_block_id;
-                    eb_proto.num_bytes = Some(length as u64);
-                },
-                None => {
-                    eb_proto.block_id = block.id;
-                    eb_proto.num_bytes = Some(block.length);
-                },
-            }
-
-            // populate LocatedBlockProto
-            lb_proto.offset = length;
-            lb_proto.corrupt = false;
-
-            // populate locs
-            for datanode_id in &block.locations {
-                if let Some(datanode) =
-                        datanode_store.get_datanode(datanode_id) {
-                    lb_proto.locs.push(to_datanode_info_proto(
-                        datanode, Some(storage_store)));
+                // populate ExtendedBlockProto
+                match query_result {
+                    Some((query_block_id, length)) => {
+                        eb_proto.block_id = query_block_id;
+                        eb_proto.num_bytes = Some(length as u64);
+                    },
+                    None => {
+                        eb_proto.block_id = block.id;
+                        eb_proto.num_bytes = Some(block.length);
+                    },
                 }
-            }
 
-            // populate storages
-            for storage_id in &block.storage_ids {
-                lb_proto.storage_types.push(0);
-                lb_proto.storage_i_ds.push(storage_id.to_string());
-                lb_proto.is_cached.push(false);
-            }
+                // populate LocatedBlockProto
+                lb_proto.offset = length;
+                lb_proto.corrupt = false;
 
-            length += eb_proto.num_bytes.unwrap(); // increment file length
-            blocks.push(lb_proto);
-        } else {
-            // block_id not found -> file not complete
-            complete = false;
+                // populate locs
+                for datanode_id in &block.locations {
+                    if let Some(datanode) =
+                            datanode_store.get_datanode(datanode_id) {
+                        lb_proto.locs.push(to_datanode_info_proto(
+                            datanode, Some(storage_store)));
+                    }
+                }
+
+                // populate storages
+                for storage_id in &block.storage_ids {
+                    lb_proto.storage_types.push(0);
+                    lb_proto.storage_i_ds.push(storage_id.to_string());
+                    lb_proto.is_cached.push(false);
+                }
+
+                // increment file length
+                length += eb_proto.num_bytes.unwrap();
+                lb_proto_blocks.push(lb_proto);
+            } else {
+                // block_id not found -> file not complete
+                complete = false;
+            }
         }
     }
 

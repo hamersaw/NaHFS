@@ -6,7 +6,7 @@ use shared::AtlasError;
 
 use crate::block::BlockStore;
 use crate::datanode::DatanodeStore;
-use crate::file::FileStore;
+use crate::file::{FileStore, FileType};
 use crate::index::Index;
 use crate::storage::StorageStore;
 
@@ -52,36 +52,42 @@ impl ClientNamenodeProtocol {
         let mut block_id = rand::random::<u64>();
         let mut file_store = self.file_store.write().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
-            let lb_proto = &mut response.block;
+            if let FileType::Regular {blocks, replication, block_size} =
+                    file.get_file_type() {
+                let lb_proto = &mut response.block;
 
-            // compute block id
-            if let Some("INDEXED") =
-                    file_store.get_storage_policy(&file.inode) {
-                block_id = (block_id & INDEXED_MASK) | FIRST_BIT;
-            } else {
-                block_id = block_id & NON_INDEXED_MASK;
+                // compute block id
+                if let Some("INDEXED") = file_store
+                        .get_storage_policy(&file.get_inode()) {
+                    block_id = (block_id & INDEXED_MASK) | FIRST_BIT;
+                } else {
+                    block_id = block_id & NON_INDEXED_MASK;
+                }
+
+                // populate random DatanodeInfoProto locations
+                let datanode_store = self.datanode_store.read().unwrap();
+                let ids = datanode_store.get_random_ids(*replication);
+
+                for id in ids {
+                    let datanode = datanode_store.get_datanode(id).unwrap();
+                    lb_proto.locs.push(super
+                        ::to_datanode_info_proto(datanode, None));
+                }
+
+                // populate ExtendedBlockProto
+                let mut ex_proto = &mut lb_proto.b;
+                ex_proto.block_id = block_id;
+                ex_proto.generation_stamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH).unwrap().as_secs() * 1000;
             }
-
-            // populate random DatanodeInfoProto locations
-            let datanode_store = self.datanode_store.read().unwrap();
-            let ids = datanode_store.get_random_ids(file.block_replication);
-
-            for id in ids {
-                let datanode = datanode_store.get_datanode(id).unwrap();
-                lb_proto.locs.push(super
-                    ::to_datanode_info_proto(datanode, None));
-            }
-
-            // populate ExtendedBlockProto
-            let mut ex_proto = &mut lb_proto.b;
-            ex_proto.block_id = block_id;
-            ex_proto.generation_stamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH).unwrap().as_secs() * 1000;
         }
 
         // add blockid to file
         if let Some(file) = file_store.get_file_mut(&request.src) {
-            file.blocks.push(block_id);
+            if let FileType::Regular {blocks, replication, block_size} =
+                    file.get_file_type_mut() {
+                blocks.push(block_id);
+            }
         }
 
         response.encode_length_delimited(resp_buf)?;
@@ -198,10 +204,10 @@ impl ClientNamenodeProtocol {
             let index = self.index.read().unwrap();
 
             let mut partial_listing = Vec::new();
-            match file.file_type {
+            match file.get_file_type_code() {
                 1 => {
                     for child_file in file_store
-                            .get_children(file.inode).unwrap() {
+                            .get_children(file.get_inode()).unwrap() {
                         partial_listing.push(crate::protocol
                             ::to_hdfs_file_status_proto(child_file,
                                 &query, &block_store, &file_store, &index));

@@ -28,6 +28,7 @@ impl From<AtlasError> for std::io::Error {
 
 #[derive(Debug)]
 pub enum AtlasError {
+    BincodeError(Box<bincode::ErrorKind>),
     DecodeError(DecodeError),
     EncodeError(EncodeError),
     GlobError(GlobError),
@@ -42,6 +43,7 @@ pub enum AtlasError {
 impl Display for AtlasError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match *self {
+            AtlasError::BincodeError(ref err) => write!(f, "BincodeError: {:?}", err),
             AtlasError::DecodeError(ref err) => write!(f, "DecodeError: {:?}", err),
             AtlasError::EncodeError(ref err) => write!(f, "EncodeError: {:?}", err),
             AtlasError::GlobError(ref err) => write!(f, "GlobError: {:?}", err),
@@ -52,6 +54,12 @@ impl Display for AtlasError {
             AtlasError::PatternError(ref err) => write!(f, "PatternError: {}", err),
             AtlasError::RadixError(ref err) => write!(f, "RaddixError: {}", err),
         }
+    }
+}
+
+impl From<Box<bincode::ErrorKind>> for AtlasError {
+    fn from(err: Box<bincode::ErrorKind>) -> AtlasError {
+        AtlasError::BincodeError(err)
     }
 }
 

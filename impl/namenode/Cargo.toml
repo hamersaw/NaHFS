@@ -5,6 +5,7 @@ authors = ["Daniel Rammer <hamersaw@bushpath.com>"]
 edition = "2018"
 
 [dependencies]
+bincode = "1.1"
 byteorder = "1"
 bytes = "0.4"
 communication = {path = "../../../utilities-rs/communication" }
@@ -15,5 +16,6 @@ log = "0.4"
 prost = "0.5"
 radix = { path = "../../../utilities-rs/radix" }
 rand = "0.6"
+serde = { version = "1.0", features = ["derive"] }
 shared = { path = "../shared" }
 structopt = "0.2"

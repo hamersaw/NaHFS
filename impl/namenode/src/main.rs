@@ -4,6 +4,7 @@ extern crate structopt;
 
 use communication::Server;
 use hdfs_comm::rpc::Protocols;
+use shared::AtlasError;
 use structopt::StructOpt;
 
 mod block;
@@ -21,7 +22,7 @@ use protocol::{ClientNamenodeProtocol, DatanodeProtocol, AtlasProtocol};
 use storage::StorageStore;
 
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::net::TcpListener;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -43,6 +44,7 @@ fn main() {
     info!("initialized datanode store");
 
     // initialize FileStore
+    // TODO - refactor to different function
     let path = Path::new(&config.persist_path);
     if let Some(parent) = path.parent() {
         if !parent.exists() {
@@ -53,11 +55,16 @@ fn main() {
         }
     }
 
-    let file_store_result = match path.exists() {
+    let file_store_result: Result<FileStore, _> = 
+            match path.exists() {
         true => {
-            let file = File::open(&config.persist_path).unwrap();
-            let buf_reader = BufReader::new(file);
-            FileStore::from(buf_reader)
+            let mut file = File::open(&config.persist_path).unwrap();
+            let mut buf = Vec::new();
+            if let Err(e) = file.read_to_end(&mut buf) {
+                error!("failed to initialize file store: {}", e);
+                return;
+            }
+            bincode::deserialize(&buf[..])
         },
         false => Ok(FileStore::new()),
     };

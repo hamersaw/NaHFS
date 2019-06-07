@@ -7,7 +7,7 @@ use crate::file::FileStore;
 use crate::index::Index;
 
 use std::fs::File;
-use std::io::{BufWriter};
+use std::io::{Write};
 use std::sync::{Arc, RwLock};
 
 pub struct AtlasProtocol {
@@ -63,11 +63,11 @@ impl AtlasProtocol {
 
         // process inode persist
         debug!("inodePersist({:?})", request);
-        let file_store = self.file_store.read().unwrap();
+        let file_store: &FileStore = &self.file_store.read().unwrap();
+        let buf: Vec<u8> = bincode::serialize(file_store)?;
 
-        let file = File::create(&self.persist_path)?;
-        let buf_writer = BufWriter::new(file);
-        file_store.write_to(buf_writer)?;
+        let mut file = File::create(&self.persist_path)?;
+        file.write_all(&buf)?;
 
         response.encode_length_delimited(resp_buf)?;
         Ok(())
