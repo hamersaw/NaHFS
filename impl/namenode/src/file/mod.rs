@@ -1,11 +1,7 @@
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use serde::{Deserialize, Serialize};
-use shared::AtlasError;
 
 mod store;
 pub use store::FileStore;
-
-use std::io::{Read, Write};
 
 #[derive(Deserialize, Serialize)]
 pub enum FileType {
@@ -65,7 +61,7 @@ impl File {
     pub fn get_file_type_code(&self) -> i32 {
         match &self.file_type {
             FileType::Directory => 1,
-            FileType::Regular {blocks, replication, block_size} => 2,
+            FileType::Regular {blocks: _, replication: _, block_size: _} => 2,
         }
     }
 

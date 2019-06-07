@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 bincode = "1.1"
-byteorder = "1"
 bytes = "0.4"
 communication = {path = "../../../utilities-rs/communication" }
 env_logger = "0.6"

@@ -1,11 +1,8 @@
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use serde::{Deserialize, Serialize};
-use shared::AtlasError;
 
 use crate::file::{File, FileType};
 
 use std::collections::HashMap;
-use std::io::{Read, Write};
 
 #[derive(Deserialize, Serialize)]
 pub struct FileStore {

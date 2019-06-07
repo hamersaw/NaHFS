@@ -90,7 +90,7 @@ fn to_hdfs_file_status_proto(file: &File,
 
     // iterate over blocks to compute file length
     hfs_proto.length = 0;
-    if let FileType::Regular{blocks, replication, block_size} =
+    if let FileType::Regular{blocks, replication: _, block_size: _} =
             file.get_file_type() {
         for (block_id, query_result) in query_blocks(blocks, index, query) {
             if let Some(block) = block_store.get_block(&block_id) {
@@ -114,7 +114,7 @@ fn to_hdfs_file_status_proto(file: &File,
                 hfs_proto.children_num = Some(children.len() as i32);
             }
         },
-        FileType::Regular{blocks, replication, block_size} => {
+        FileType::Regular{blocks: _, replication, block_size} => {
             hfs_proto.block_replication = Some(*replication);
             hfs_proto.blocksize = Some(*block_size);
         },
@@ -134,7 +134,7 @@ fn to_located_blocks_proto(file: &File,
     let lb_proto_blocks = &mut lbs_proto.blocks;
 
     let (mut length, mut complete) = (0, true);
-    if let FileType::Regular{blocks, replication, block_size} =
+    if let FileType::Regular{blocks, replication: _, block_size: _} =
             file.get_file_type() {
         for (block_id, query_result) in query_blocks(blocks, index, query) {
             if let Some(block) = block_store.get_block(&block_id) {

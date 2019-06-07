@@ -4,7 +4,6 @@ extern crate structopt;
 
 use communication::Server;
 use hdfs_comm::rpc::Protocols;
-use shared::AtlasError;
 use structopt::StructOpt;
 
 mod block;
@@ -22,7 +21,7 @@ use protocol::{ClientNamenodeProtocol, DatanodeProtocol, AtlasProtocol};
 use storage::StorageStore;
 
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::net::TcpListener;
 use std::path::Path;
 use std::sync::{Arc, RwLock};

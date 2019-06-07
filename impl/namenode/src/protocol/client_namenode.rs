@@ -52,7 +52,7 @@ impl ClientNamenodeProtocol {
         let mut block_id = rand::random::<u64>();
         let mut file_store = self.file_store.write().unwrap();
         if let Some(file) = file_store.get_file(&request.src) {
-            if let FileType::Regular {blocks, replication, block_size} =
+            if let FileType::Regular {blocks: _, replication, block_size: _} =
                     file.get_file_type() {
                 let lb_proto = &mut response.block;
 
@@ -84,7 +84,7 @@ impl ClientNamenodeProtocol {
 
         // add blockid to file
         if let Some(file) = file_store.get_file_mut(&request.src) {
-            if let FileType::Regular {blocks, replication, block_size} =
+            if let FileType::Regular {blocks, replication: _, block_size: _} =
                     file.get_file_type_mut() {
                 blocks.push(block_id);
             }
