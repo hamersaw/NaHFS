@@ -1,7 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
 use shared::AtlasError;
-use shared::protos::{IndexReportResponseProto, IndexReportRequestProto, InodePersistResponseProto, InodePersistRequestProto};
+use shared::protos::{GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, InodePersistResponseProto, InodePersistRequestProto};
 
 use crate::file::FileStore;
 use crate::index::Index;
@@ -24,6 +24,26 @@ impl AtlasProtocol {
             index: index,
             persist_path: persist_path.to_string(),
         }
+    }
+
+    fn get_storage_policy(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+        let request = GetStoragePolicyRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let mut response = GetStoragePolicyResponseProto::default();
+
+        // retrieve storage policy
+        debug!("getStoragePolicy({:?})", request);
+        let file_store: &FileStore = &self.file_store.read().unwrap();
+        match file_store.get_storage_policy_str(&request.id) {
+            Some(storage_policy) =>
+                response.storage_policy = storage_policy.to_owned(),
+            None => return Err(AtlasError::from(
+                format!("storage policy {} not found", request.id))),
+        }
+
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
     fn index_report(&self, req_buf: &[u8],
@@ -78,6 +98,8 @@ impl Protocol for AtlasProtocol {
     fn process(&self, _user: &Option<String>, method: &str,
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
+            "getStoragePolicy" =>
+                self.get_storage_policy(req_buf, resp_buf)?,
             "indexReport" => self.index_report(req_buf, resp_buf)?,
             "inodePersist" => self.inode_persist(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),

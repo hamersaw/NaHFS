@@ -32,13 +32,13 @@ pub struct File {
     owner: String,
     group: String,
     permissions: u32,
-    storage_policy: Option<String>,
+    storage_policy: Option<u32>,
 }
 
 impl File {
     pub fn new(inode: u64, file_type: FileType, name: String,
             owner: String, group: String, permissions: u32,
-            storage_policy: Option<String>) -> File {
+            storage_policy: Option<u32>) -> File {
         File {
             inode: inode,
             file_type: file_type,
@@ -81,7 +81,7 @@ impl File {
         self.permissions
     }
 
-    pub fn get_storage_policy(&self) -> &Option<String> {
+    pub fn get_storage_policy(&self) -> &Option<u32> {
         &self.storage_policy
     }
 }

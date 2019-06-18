@@ -9,6 +9,7 @@ pub struct FileStore {
     inodes: HashMap<u64, File>,
     children: HashMap<u64, Vec<u64>>,
     parents: HashMap<u64, u64>,
+    storage_policies: HashMap<u32, String>,
 }
 
 impl FileStore {
@@ -28,6 +29,7 @@ impl FileStore {
             inodes: inodes,
             children: children,
             parents: HashMap::new(),
+            storage_policies: HashMap::new(),
         }
     }
 
@@ -134,12 +136,12 @@ impl FileStore {
         (inode, match_length)
     }
 
-    pub fn get_storage_policy(&self, inode: &u64) -> Option<&str> {
+    pub fn get_storage_policy_id(&self, inode: &u64) -> Option<u32> {
         let mut current_inode = inode;
         loop {
             if let Some(file) = self.inodes.get(current_inode) {
-                if let Some(storage_policy) = file.get_storage_policy() {
-                    return Some(storage_policy);
+                if let Some(storage_policy_id) = file.get_storage_policy() {
+                    return Some(*storage_policy_id);
                 }
             }
  
@@ -152,6 +154,10 @@ impl FileStore {
         }
 
         None
+    }
+
+    pub fn get_storage_policy_str(&self, id: &u32) -> Option<&String> {
+        self.storage_policies.get(id)
     }
 
     pub fn mkdirs(&mut self, directory: &str, permissions: u32,
@@ -236,7 +242,11 @@ impl FileStore {
         }
 
         let mut file = self.inodes.get_mut(&inode).unwrap();
-        file.storage_policy = Some(storage_policy.to_string());
+
+        let storage_policy_id = rand::random::<u32>();
+        self.storage_policies.insert(storage_policy_id,
+            storage_policy.to_string());
+        file.storage_policy = Some(storage_policy_id);
     }
 }
 

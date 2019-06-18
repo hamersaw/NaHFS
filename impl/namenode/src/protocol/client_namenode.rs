@@ -56,13 +56,15 @@ impl ClientNamenodeProtocol {
                     file.get_file_type() {
                 let lb_proto = &mut response.block;
 
-                // compute block id
-                if let Some("INDEXED") = file_store
-                        .get_storage_policy(&file.get_inode()) {
+                // compute block id 
+                let mask = if let Some(storage_policy_id) = file_store
+                        .get_storage_policy_id(&file.get_inode()) {
                     block_id = (block_id & INDEXED_MASK) | FIRST_BIT;
+                    storage_policy_id
                 } else {
                     block_id = block_id & NON_INDEXED_MASK;
-                }
+                    0
+                };
 
                 // populate random DatanodeInfoProto locations
                 let datanode_store = self.datanode_store.read().unwrap();
@@ -76,7 +78,7 @@ impl ClientNamenodeProtocol {
 
                 // populate ExtendedBlockProto
                 let mut ex_proto = &mut lb_proto.b;
-                ex_proto.block_id = block_id;
+                ex_proto.block_id = block_id | mask as u64;
                 ex_proto.generation_stamp = SystemTime::now()
                     .duration_since(UNIX_EPOCH).unwrap().as_secs() * 1000;
             }

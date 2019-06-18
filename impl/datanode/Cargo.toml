@@ -15,5 +15,6 @@ hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
 hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }
 log = "0.4"
 prost = "0.5"
+regex = "1.1"
 shared = { path = "../shared" }
 structopt = "0.2"

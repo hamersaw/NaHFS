@@ -8,9 +8,11 @@ use communication::Server;
 use structopt::StructOpt;
 
 mod block;
+mod index;
 mod protocol;
 
 use block::BlockProcessor;
+use index::IndexStore;
 use protocol::{NamenodeProtocol, TransferStreamHandler};
 
 use std::net::TcpListener;
@@ -24,6 +26,10 @@ fn main() {
     // parse arguments
     let config = Config::from_args();
 
+    // initialize IndexStore
+    let index_store = Arc::new(RwLock::new(IndexStore::new(
+        config.namenode_ip_address.clone(), config.namenode_port)));
+
     // initialize BlockProcessor
     let path = Path::new(&config.data_directory);
     if !path.exists() {
@@ -33,7 +39,7 @@ fn main() {
         }
     }
  
-    let mut processor = BlockProcessor::new(
+    let mut processor = BlockProcessor::new(index_store.clone(),
         config.processor_thread_count, config.processor_queue_length, 
         config.data_directory.clone());
     info!("initialized block processor");

@@ -3,7 +3,12 @@ use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use shared::AtlasError;
 use shared::protos::BlockMetadataProto;
 
+use crate::index::IndexStore;
+
+use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+
+static INDEXED_MASK: u64 = 18446744004990074880;
 
 pub enum Operation {
     INDEX,
@@ -31,6 +36,7 @@ impl BlockOperation {
 }
 
 pub struct BlockProcessor {
+    index_store: Arc<RwLock<IndexStore>>,
     thread_count: u8,
     data_directory: String,
     operation_channel: (Sender<BlockOperation>,
@@ -40,9 +46,10 @@ pub struct BlockProcessor {
 }
 
 impl BlockProcessor {
-    pub fn new(thread_count: u8, queue_length:u8,
-            data_directory: String) -> BlockProcessor {
+    pub fn new(index_store: Arc<RwLock<IndexStore>>, thread_count: u8,
+            queue_length: u8, data_directory: String) -> BlockProcessor {
         BlockProcessor {
+            index_store: index_store,
             thread_count: thread_count,
             data_directory: data_directory,
             operation_channel: crossbeam_channel
@@ -82,13 +89,15 @@ impl BlockProcessor {
     pub fn start(&mut self) -> Result<(), AtlasError> {
         for _ in 0..self.thread_count {
             // clone variables
+            let index_store_clone = self.index_store.clone();
             let data_directory_clone = self.data_directory.clone();
             let operation_sender = self.operation_channel.0.clone();
             let operation_receiver = self.operation_channel.1.clone();
             let shutdown_receiver = self.shutdown_channel.1.clone();
 
             let join_handle = std::thread::spawn(move || {
-                process_loop(&operation_sender, &operation_receiver,
+                process_loop(index_store_clone,
+                    &operation_sender, &operation_receiver,
                     &shutdown_receiver, &data_directory_clone);
             });
 
@@ -114,7 +123,8 @@ impl BlockProcessor {
     }*/
 }
 
-fn process_loop(operation_sender: &Sender<BlockOperation>,
+fn process_loop(index_store: Arc<RwLock<IndexStore>>,
+        operation_sender: &Sender<BlockOperation>,
         operation_receiver: &Receiver<BlockOperation>,
         shutdown_receiver: &Receiver<bool>, data_directory: &str) {
     loop {
@@ -130,9 +140,24 @@ fn process_loop(operation_sender: &Sender<BlockOperation>,
                 let mut block_op = result.unwrap();
                 let process_result = match block_op.operation {
                     Operation::INDEX => {
+                        /*// parse storage_policy_id and get Indexer
+                        let storage_policy_id =
+                            block_op.bm_proto.block_id as u32;
+
+                        // TODO - optimize
+                        //  if exists -> can use read
+                        //  otherwise write locks index_store during entire indexing process
+                        let mut index_store =
+                            index_store.write().unwrap();
+                        let indexer = 
+                            index_store.get_index(storage_policy_id);
+
                         match super::index_block(&block_op.data, 
                                 &block_op.bm_proto) {
+                        //match indexer.process(&block_op.data,
+                        //        &block_op.bm_proto) {
                             Ok((indexed_data, bi_proto)) => {
+                                // TODO -set block_op.block_id correctly
                                 block_op.bm_proto.index =
                                     Some(bi_proto);
                                 block_op.bm_proto.length =
@@ -141,7 +166,8 @@ fn process_loop(operation_sender: &Sender<BlockOperation>,
                                 Ok(())
                             },
                             Err(e) => Err(e),
-                        }
+                        }*/
+                        index_block(&index_store, &mut block_op)
                     },
                     Operation::WRITE => 
                         super::write_block(&block_op.data,
@@ -183,4 +209,29 @@ fn process_loop(operation_sender: &Sender<BlockOperation>,
             recv(shutdown_receiver) -> _ => break,
         }
     }
+}
+
+fn index_block(index_store: &Arc<RwLock<IndexStore>>,
+        block_op: &mut BlockOperation) -> Result<(), AtlasError> {
+    // parse storage_policy_id and get Indexer
+    let storage_policy_id = block_op.bm_proto.block_id as u32;
+
+    // TODO - optimize
+    //  if exists -> can use read
+    //  otherwise write locks index_store during entire indexing process
+    let mut index_store = index_store.write().unwrap();
+    let indexer = index_store.get_index(storage_policy_id)?;
+
+    // index block
+    let (indexed_data, bi_proto) =
+        indexer.process(&block_op.data, &block_op.bm_proto)?;
+
+    // update BlockOperation
+    block_op.bm_proto.block_id =
+        block_op.bm_proto.block_id & INDEXED_MASK;
+    block_op.bm_proto.index = Some(bi_proto);
+    block_op.bm_proto.length = indexed_data.len() as u64;
+    block_op.data = indexed_data;
+
+    Ok(())
 }

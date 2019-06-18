@@ -38,6 +38,7 @@ pub enum AtlasError {
     ParseIntError(ParseIntError),
     PatternError(PatternError),
     RadixError(RadixError),
+    RegexError(regex::Error),
 }
 
 impl Display for AtlasError {
@@ -53,6 +54,7 @@ impl Display for AtlasError {
             AtlasError::ParseIntError(ref err) => write!(f, "ParseIntError: {}", err),
             AtlasError::PatternError(ref err) => write!(f, "PatternError: {}", err),
             AtlasError::RadixError(ref err) => write!(f, "RaddixError: {}", err),
+            AtlasError::RegexError(ref err) => write!(f, "RegexError: {}", err),
         }
     }
 }
@@ -108,6 +110,12 @@ impl From<PatternError> for AtlasError {
 impl From<RadixError> for AtlasError {
     fn from(err: RadixError) -> AtlasError {
         AtlasError::RadixError(err)
+    }
+}
+
+impl From<regex::Error> for AtlasError {
+    fn from(err: regex::Error) -> AtlasError {
+        AtlasError::RegexError(err)
     }
 }
 

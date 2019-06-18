@@ -10,21 +10,35 @@ message BlockMetadataProto {
 }
 
 message BlockIndexProto {
-    required uint64 startTimestamp = 2;
-    required uint64 endTimestamp = 3;
-    repeated string geohashes = 4;
-    repeated uint32 startIndices = 5;
-    repeated uint32 endIndices = 6;
+    required uint64 startTimestamp = 1;
+    required uint64 endTimestamp = 2;
+    repeated string geohashes = 3;
+    repeated uint32 startIndices = 4;
+    repeated uint32 endIndices = 5;
+}
+
+/**
+ * datanode communication messages
+ */
+message GetStoragePolicyRequestProto {
+    required uint32 id = 1;
+}
+
+message GetStoragePolicyResponseProto {
+    required string storagePolicy = 1;
 }
 
 message IndexReportRequestProto {
-    repeated uint64 blockIds = 2;
-    repeated BlockIndexProto blockIndices = 3;
+    repeated uint64 blockIds = 1;
+    repeated BlockIndexProto blockIndices = 2;
 }
 
 message IndexReportResponseProto {
 }
 
+/**
+ * cli communication messages
+ */
 message InodePersistRequestProto {
 }
 

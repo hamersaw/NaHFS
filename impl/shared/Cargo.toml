@@ -12,6 +12,7 @@ bytes = "0.4"
 glob = "0.3"
 prost = "0.5"                  
 radix = { path = "../../../utilities-rs/radix" }
+regex = "1.1"
 
 [build-dependencies]           
 prost-build = "0.5"
