@@ -139,36 +139,8 @@ fn process_loop(index_store: Arc<RwLock<IndexStore>>,
                 // process block operation
                 let mut block_op = result.unwrap();
                 let process_result = match block_op.operation {
-                    Operation::INDEX => {
-                        /*// parse storage_policy_id and get Indexer
-                        let storage_policy_id =
-                            block_op.bm_proto.block_id as u32;
-
-                        // TODO - optimize
-                        //  if exists -> can use read
-                        //  otherwise write locks index_store during entire indexing process
-                        let mut index_store =
-                            index_store.write().unwrap();
-                        let indexer = 
-                            index_store.get_index(storage_policy_id);
-
-                        match super::index_block(&block_op.data, 
-                                &block_op.bm_proto) {
-                        //match indexer.process(&block_op.data,
-                        //        &block_op.bm_proto) {
-                            Ok((indexed_data, bi_proto)) => {
-                                // TODO -set block_op.block_id correctly
-                                block_op.bm_proto.index =
-                                    Some(bi_proto);
-                                block_op.bm_proto.length =
-                                    indexed_data.len() as u64;
-                                block_op.data = indexed_data;
-                                Ok(())
-                            },
-                            Err(e) => Err(e),
-                        }*/
-                        index_block(&index_store, &mut block_op)
-                    },
+                    Operation::INDEX =>
+                        index_block(&index_store, &mut block_op),
                     Operation::WRITE => 
                         super::write_block(&block_op.data,
                             &block_op.bm_proto, &data_directory),
@@ -216,11 +188,19 @@ fn index_block(index_store: &Arc<RwLock<IndexStore>>,
     // parse storage_policy_id and get Indexer
     let storage_policy_id = block_op.bm_proto.block_id as u32;
 
-    // TODO - optimize
-    //  if exists -> can use read
-    //  otherwise write locks index_store during entire indexing process
-    let mut index_store = index_store.write().unwrap();
-    let indexer = index_store.get_index(storage_policy_id)?;
+    let available = {
+        let index_store = index_store.read().unwrap();
+        index_store.contains_index(&storage_policy_id)
+    };
+
+    if !available {
+        let mut index_store = index_store.write().unwrap();
+        index_store.retrieve_index(&storage_policy_id)?;
+    }
+
+    // retrieve indexer
+    let index_store = index_store.read().unwrap();
+    let indexer = index_store.get_index(&storage_policy_id).unwrap();
 
     // index block
     let (indexed_data, bi_proto) =

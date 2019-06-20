@@ -23,32 +23,42 @@ impl IndexStore {
         }
     }
 
-    pub fn get_index(&mut self, id: u32)
-            -> Result<&Indexer, AtlasError> {
-        // if indexer doesn't exist -> create from namenode query
-        if !self.map.contains_key(&id) {
-            // initialize GetStoragePolicyRequestProto
-            let mut req = GetStoragePolicyRequestProto::default();
-            req.id = id;
+    pub fn contains_index(&self, id: &u32) -> bool {
+        self.map.contains_key(id)
+    }
 
-            debug!("writing GetStoragePolicyRequestProto to {}:{}",
-                self.ip_address, self.port);
+    pub fn get_index(&self, id: &u32) -> Option<&Indexer> {
+        self.map.get(id)
+    }
 
-            // send GetStoragePolicyRequestProto
-            let mut client = Client::new(&self.ip_address, self.port)?;
-            let (_, resp_buf) = client.write_message("com.bushpath.atlas.protocol.AtlasProtocol", "getStoragePolicy", req)?;
-
-            // read response
-            let resp = GetStoragePolicyResponseProto
-                ::decode_length_delimited(resp_buf)?;
-
-            // parse storage policy -> indexer
-            debug!("parsing storage policy '{}'", &resp.storage_policy);
-            let indexer = Indexer::parse(&resp.storage_policy)?;
-            self.map.insert(id, indexer);
+    pub fn retrieve_index(&mut self, id: &u32)
+            -> Result<(), AtlasError> {
+        if self.map.contains_key(id) {
+            return Err(AtlasError::from(
+                format!("index '{}' already exists", id)));
         }
 
-        Ok(self.map.get(&id).unwrap())
+        // initialize GetStoragePolicyRequestProto
+        let mut req = GetStoragePolicyRequestProto::default();
+        req.id = *id;
+
+        debug!("writing GetStoragePolicyRequestProto to {}:{}",
+            self.ip_address, self.port);
+
+        // send GetStoragePolicyRequestProto
+        let mut client = Client::new(&self.ip_address, self.port)?;
+        let (_, resp_buf) = client.write_message("com.bushpath.atlas.protocol.AtlasProtocol", "getStoragePolicy", req)?;
+
+        // read response
+        let resp = GetStoragePolicyResponseProto
+            ::decode_length_delimited(resp_buf)?;
+
+        // parse storage policy -> indexer
+        debug!("parsing storage policy '{}'", &resp.storage_policy);
+        let indexer = Indexer::parse(&resp.storage_policy)?;
+        self.map.insert(*id, indexer);
+
+        Ok(())
     }
 }
 
