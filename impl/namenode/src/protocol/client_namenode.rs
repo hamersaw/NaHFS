@@ -195,12 +195,13 @@ impl ClientNamenodeProtocol {
         let mut response = GetListingResponseProto::default();
 
         // get listing
-        // TODO - handle start_after, need_location
+        // TODO - handle need_location
         debug!("getListing({:?})", request);
         let (path, query) =
             parse_embedded_query_path(&request.src).unwrap();
 
         let file_store = self.file_store.read().unwrap();
+        let mut remaining_entries = 0;
         if let Some(file) = file_store.get_file(path) {
             let block_store = self.block_store.read().unwrap();
             let index = self.index.read().unwrap();
@@ -208,11 +209,41 @@ impl ClientNamenodeProtocol {
             let mut partial_listing = Vec::new();
             match file.get_file_type_code() {
                 1 => {
-                    for child_file in file_store
-                            .get_children(file.get_inode()).unwrap() {
-                        partial_listing.push(crate::protocol
+                    // parse start_after from request
+                    let start_after =
+                        String::from_utf8_lossy(&request.start_after);
+                    let mut process = 
+                            match request.start_after.len() {
+                        0 => true,
+                        _ => false,
+                    };
+
+                    let mut byte_count = 0;
+                    let children = file_store
+                        .get_children(file.get_inode()).unwrap();
+                    for (i, child_file) in children.iter().enumerate() {
+                        // check if we process this file
+                        if !process {
+                            if start_after == file_store.compute_path(
+                                    child_file.get_inode()) {
+                                process = true;
+                            }
+
+                            continue;
+                        }
+
+                        // process this file
+                        let hfs_proto = crate::protocol
                             ::to_hdfs_file_status_proto(child_file,
-                                &query, &block_store, &file_store, &index));
+                                &query, &block_store, &file_store, &index);
+                        byte_count += hfs_proto.encoded_len();
+                        partial_listing.push(hfs_proto);
+
+                        // check if message is too large
+                        if byte_count >= 65536 {
+                            remaining_entries = children.len() - 1 - i;
+                            break;
+                        }
                     }
                 },
                 2 => partial_listing.push(crate::protocol
@@ -224,7 +255,8 @@ impl ClientNamenodeProtocol {
             // create DirectoryListingProto
             let mut directory_listing = DirectoryListingProto::default();
             directory_listing.partial_listing = partial_listing;
-            directory_listing.remaining_entries = 0;
+            directory_listing.remaining_entries =
+                remaining_entries as u32;
 
             response.dir_list = Some(directory_listing);
         }
