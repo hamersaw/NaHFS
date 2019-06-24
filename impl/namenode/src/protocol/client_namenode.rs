@@ -1,6 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, RenewLeaseResponseProto, RenewLeaseRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
+use query::BooleanExpression;
 use radix::RadixQuery;
 use shared::AtlasError;
 
@@ -249,7 +250,7 @@ impl ClientNamenodeProtocol {
                 2 => partial_listing.push(crate::protocol
                     ::to_hdfs_file_status_proto(file, &query,
                         &block_store, &file_store, &index)),
-                _ => unimplemented!(),
+                _ => unreachable!(),
             }
 
             // create DirectoryListingProto
@@ -372,8 +373,8 @@ impl Protocol for ClientNamenodeProtocol {
     }
 }
 
-fn parse_embedded_query_path(path: &str)
-        -> Result<(&str, Option<(&str, RadixQuery)>), AtlasError> {
+fn parse_embedded_query_path(path: &str) -> Result<(&str,
+        Option<(&str, (BooleanExpression<u64>, RadixQuery))>), AtlasError> {
     let fields: Vec<&str> = path.split("+").collect();
     let query = match fields.len() {
         1 => None,

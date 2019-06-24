@@ -13,8 +13,10 @@ hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
 hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }
 log = "0.4"
 prost = "0.5"
+query = { path = "../../../utilities-rs/query" }
 radix = { path = "../../../utilities-rs/radix" }
 rand = "0.6"
+regex = "1.1"
 serde = { version = "1.0", features = ["derive"] }
 shared = { path = "../shared" }
 structopt = "0.2"

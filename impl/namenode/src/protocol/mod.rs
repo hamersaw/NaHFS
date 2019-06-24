@@ -1,4 +1,5 @@
 use hdfs_protos::hadoop::hdfs::{DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
+use query::BooleanExpression;
 use radix::RadixQuery;
 
 use crate::block::BlockStore;
@@ -74,8 +75,9 @@ fn to_datanode_info_proto(datanode: &Datanode,
 }
 
 fn to_hdfs_file_status_proto(file: &File,
-        query: &Option<(&str, RadixQuery)>, block_store: &BlockStore,
-        file_store: &FileStore, index: &Index) -> HdfsFileStatusProto {
+        query: &Option<(&str, (BooleanExpression<u64>, RadixQuery))>, 
+        block_store: &BlockStore, file_store: &FileStore,
+        index: &Index) -> HdfsFileStatusProto {
     let mut hfs_proto = HdfsFileStatusProto::default();
     hfs_proto.file_type = file.get_file_type_code();
     hfs_proto.path =
@@ -127,9 +129,9 @@ fn to_hdfs_file_status_proto(file: &File,
 }
 
 fn to_located_blocks_proto(file: &File,
-        query: &Option<(&str, RadixQuery)>, block_store: &BlockStore,
-        datanode_store: &DatanodeStore, index: &Index,
-        storage_store: &StorageStore) -> LocatedBlocksProto {
+        query: &Option<(&str, (BooleanExpression<u64>, RadixQuery))>,
+        block_store: &BlockStore, datanode_store: &DatanodeStore,
+        index: &Index, storage_store: &StorageStore) -> LocatedBlocksProto {
     let mut lbs_proto = LocatedBlocksProto::default();
     let lb_proto_blocks = &mut lbs_proto.blocks;
 
@@ -191,13 +193,15 @@ fn to_located_blocks_proto(file: &File,
 }
 
 fn query_blocks(block_ids: &Vec<u64>, index: &Index, 
-        query: &Option<(&str, RadixQuery)>) -> Vec<(u64, Option<(u64, u32)>)> {
+        query: &Option<(&str, (BooleanExpression<u64>, RadixQuery))>)
+        -> Vec<(u64, Option<(u64, u32)>)> {
     let mut blocks = Vec::new();
 
     match query {
-        Some((_, query)) => {
+        Some((_, (boolean_expr, radix_query))) => {
             // submit query to index
-            let query_map = index.query(query, block_ids);
+            let query_map =
+                index.query(boolean_expr, radix_query, block_ids);
 
             // iterate over length_map
             for (block_id, (geohashes, lengths)) in query_map.iter() {
