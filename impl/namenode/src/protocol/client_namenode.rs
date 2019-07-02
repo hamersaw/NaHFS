@@ -234,9 +234,23 @@ impl ClientNamenodeProtocol {
                         }
 
                         // process this file
-                        let hfs_proto = crate::protocol
+                        let mut hfs_proto = crate::protocol
                             ::to_hdfs_file_status_proto(child_file,
                                 &query, &block_store, &file_store, &index);
+
+                        // add locations if necessary
+                        if request.need_location {
+                            let datanode_store =
+                                self.datanode_store.read().unwrap();
+                            let storage_store =
+                                self.storage_store.read().unwrap();
+
+                            hfs_proto.locations = Some(crate::protocol
+                                ::to_located_blocks_proto(child_file,
+                                    &query, &block_store, &datanode_store,
+                                    &index, &storage_store));
+                        }
+
                         byte_count += hfs_proto.encoded_len();
                         partial_listing.push(hfs_proto);
 
@@ -247,9 +261,26 @@ impl ClientNamenodeProtocol {
                         }
                     }
                 },
-                2 => partial_listing.push(crate::protocol
-                    ::to_hdfs_file_status_proto(file, &query,
-                        &block_store, &file_store, &index)),
+                2 => {
+                    let mut hfs_proto = crate::protocol
+                        ::to_hdfs_file_status_proto(file, &query,
+                            &block_store, &file_store, &index);
+
+                    // add locations if necessary
+                    if request.need_location {
+                        let datanode_store =
+                            self.datanode_store.read().unwrap();
+                        let storage_store =
+                            self.storage_store.read().unwrap();
+
+                        hfs_proto.locations = Some(crate::protocol
+                            ::to_located_blocks_proto(file, &query,
+                                &block_store, &datanode_store,
+                                &index, &storage_store));
+                    }
+
+                    partial_listing.push(hfs_proto);
+                }
                 _ => unreachable!(),
             }
 
@@ -261,7 +292,8 @@ impl ClientNamenodeProtocol {
 
             response.dir_list = Some(directory_listing);
         }
-        
+
+        println!("GET_LISTING: {:?}", response);
         response.encode_length_delimited(resp_buf)?;
         Ok(())
     }
