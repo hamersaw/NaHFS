@@ -161,8 +161,8 @@ impl StreamHandler for TransferStreamHandler {
  
                     // send block
                     let mut block_stream = BlockOutputStream::new(
-                        stream.try_clone()?, chunk_size_bytes,
-                        chunks_per_packet);
+                        stream.try_clone()?, offset as i64,
+                        chunk_size_bytes, chunks_per_packet);
                     block_stream.write_all(&mut buf)?;
                     block_stream.close();
 

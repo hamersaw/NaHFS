@@ -293,7 +293,6 @@ impl ClientNamenodeProtocol {
             response.dir_list = Some(directory_listing);
         }
 
-        println!("GET_LISTING: {:?}", response);
         response.encode_length_delimited(resp_buf)?;
         Ok(())
     }

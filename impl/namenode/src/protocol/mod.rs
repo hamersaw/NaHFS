@@ -122,7 +122,6 @@ fn to_hdfs_file_status_proto(file: &File,
         },
     }
 
-    // TODO - add locations if necessary
     hfs_proto.file_id = Some(file.get_inode());
 
     hfs_proto
