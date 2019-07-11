@@ -1,14 +1,12 @@
 use hdfs_comm::rpc::Protocol;
 use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, RenewLeaseResponseProto, RenewLeaseRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
-use query::BooleanExpression;
-use radix::RadixQuery;
 use shared::AtlasError;
 
 use crate::block::BlockStore;
 use crate::datanode::DatanodeStore;
 use crate::file::{FileStore, FileType};
-use crate::index::Index;
+use crate::index::{Index, SpatialQuery, TemporalQuery};
 use crate::storage::StorageStore;
 
 use std::sync::{Arc, RwLock};
@@ -405,7 +403,7 @@ impl Protocol for ClientNamenodeProtocol {
 }
 
 fn parse_embedded_query_path(path: &str) -> Result<(&str,
-        Option<(&str, (BooleanExpression<u64>, RadixQuery))>), AtlasError> {
+        Option<(&str, (Option<SpatialQuery>, Option<TemporalQuery>))>), AtlasError> {
     let fields: Vec<&str> = path.split("+").collect();
     let query = match fields.len() {
         1 => None,

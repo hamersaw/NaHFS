@@ -1,11 +1,9 @@
 use hdfs_protos::hadoop::hdfs::{DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
-use query::BooleanExpression;
-use radix::RadixQuery;
 
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
 use crate::file::{File, FileStore, FileType};
-use crate::index::Index;
+use crate::index::{Index, SpatialQuery, TemporalQuery};
 use crate::storage::StorageStore;
 
 mod client_namenode;
@@ -75,7 +73,7 @@ fn to_datanode_info_proto(datanode: &Datanode,
 }
 
 fn to_hdfs_file_status_proto(file: &File,
-        query: &Option<(&str, (BooleanExpression<u64>, RadixQuery))>, 
+        query: &Option<(&str, (Option<SpatialQuery>, Option<TemporalQuery>))>, 
         block_store: &BlockStore, file_store: &FileStore,
         index: &Index) -> HdfsFileStatusProto {
     let mut hfs_proto = HdfsFileStatusProto::default();
@@ -128,7 +126,7 @@ fn to_hdfs_file_status_proto(file: &File,
 }
 
 fn to_located_blocks_proto(file: &File,
-        query: &Option<(&str, (BooleanExpression<u64>, RadixQuery))>,
+        query: &Option<(&str, (Option<SpatialQuery>, Option<TemporalQuery>))>, 
         block_store: &BlockStore, datanode_store: &DatanodeStore,
         index: &Index, storage_store: &StorageStore) -> LocatedBlocksProto {
     let mut lbs_proto = LocatedBlocksProto::default();
@@ -192,34 +190,49 @@ fn to_located_blocks_proto(file: &File,
 }
 
 fn query_blocks(block_ids: &Vec<u64>, index: &Index, 
-        query: &Option<(&str, (BooleanExpression<u64>, RadixQuery))>)
+        query: &Option<(&str, (Option<SpatialQuery>, Option<TemporalQuery>))>)
         -> Vec<(u64, Option<(u64, u32)>)> {
     let mut blocks = Vec::new();
 
     match query {
-        Some((_, (boolean_expr, radix_query))) => {
-            // submit query to index
-            let query_map =
-                index.query(boolean_expr, radix_query, block_ids);
-
-            // iterate over length_map
-            for (block_id, (geohashes, lengths)) in query_map.iter() {
-                if geohashes.len() == 0 {
-                    continue;
+        Some((_, (spatial_query, temporal_query))) => {
+            'block: for block_id in block_ids {
+                // evaluate temporal query
+                if let Some(query) = temporal_query {
+                    if !index.temporal_query(block_id, query) {
+                        // temporal query fails -> skip block
+                        continue 'block;
+                    }
                 }
 
-                // compute block_id
-                let query_block_id = shared::block
-                    ::encode_block_id(&block_id, &geohashes);
+                // evaluate spatial query
+                if let Some(query) = spatial_query {
+                    if let Some(geohashes) =
+                            index.spatial_query(block_id, query) {
+                        if geohashes.len() == 0 {
+                            // no spatial index found -> use whole block
+                            blocks.push((*block_id, None));
+                        } else {
+                            // compute block_id
+                            let geohash_vec = geohashes.keys()
+                                .map(|x| *x).collect();
+                            let query_block_id = shared::block
+                                ::encode_block_id(&block_id, &geohash_vec);
 
-                // compute block length
-                let mut query_block_length = 0;
-                for length in lengths {
-                    query_block_length += length;
+                            // compute block length
+                            let mut query_block_length = 0;
+                            for (_, length) in geohashes.iter() {
+                                query_block_length += length;
+                            }
+
+                            blocks.push((*block_id,
+                                Some((query_block_id, query_block_length))));
+                        }
+                    }
+                } else {
+                    // no spatial query -> use whole block
+                    blocks.push((*block_id, None));
                 }
-
-                blocks.push((*block_id,
-                    Some((query_block_id, query_block_length))));
             }
         },
         None => {

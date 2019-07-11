@@ -62,15 +62,15 @@ impl AtlasProtocol {
             // add geohashes
             if let Some(si_proto) = &bi_proto.spatial_index {
                 for j in 0..si_proto.geohashes.len() {
-                    index.add_geohash(&si_proto.geohashes[j], block_id,
+                    index.add_spatial_index(*block_id, &si_proto.geohashes[j],
                         si_proto.end_indices[j] - si_proto.start_indices[j])?;
                 }
             }
 
             // add time range
             if let Some(ti_proto) = &bi_proto.temporal_index {
-                index.add_time_range(ti_proto.start_timestamp,
-                    ti_proto.end_timestamp, block_id)?;
+                index.add_temporal_index(*block_id,
+                    ti_proto.start_timestamp, ti_proto.end_timestamp)?;
             }
         }
 
