@@ -10,11 +10,19 @@ message BlockMetadataProto {
 }
 
 message BlockIndexProto {
+    optional TemporalIndexProto temporalIndex = 1;
+    optional SpatialIndexProto spatialIndex = 2;
+}
+
+message TemporalIndexProto {
     required uint64 startTimestamp = 1;
     required uint64 endTimestamp = 2;
-    repeated string geohashes = 3;
-    repeated uint32 startIndices = 4;
-    repeated uint32 endIndices = 5;
+}
+
+message SpatialIndexProto {
+    repeated string geohashes = 1;
+    repeated uint32 startIndices = 2;
+    repeated uint32 endIndices = 3;
 }
 
 /**

@@ -57,18 +57,21 @@ impl AtlasProtocol {
         let mut index = self.index.write().unwrap();
         for i in 0..request.block_ids.len() {
             let block_id = &request.block_ids[i];
-            let block_index = &request.block_indices[i];
+            let bi_proto = &request.block_indices[i];
 
             // add geohashes
-            for j in 0..block_index.geohashes.len() {
-                index.add_geohash(&block_index.geohashes[j], block_id,
-                    block_index.end_indices[j]
-                        - block_index.start_indices[j])?;
+            if let Some(si_proto) = &bi_proto.spatial_index {
+                for j in 0..si_proto.geohashes.len() {
+                    index.add_geohash(&si_proto.geohashes[j], block_id,
+                        si_proto.end_indices[j] - si_proto.start_indices[j])?;
+                }
             }
 
             // add time range
-            index.add_time_range(block_index.start_timestamp,
-                block_index.end_timestamp, block_id)?;
+            if let Some(ti_proto) = &bi_proto.temporal_index {
+                index.add_time_range(ti_proto.start_timestamp,
+                    ti_proto.end_timestamp, block_id)?;
+            }
         }
 
         response.encode_length_delimited(resp_buf)?;

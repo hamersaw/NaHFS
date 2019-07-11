@@ -107,10 +107,6 @@ fn query_process(key: &Vec<u8>, value: &Vec<(u64, u32)>,
     }
 }
 
-/*pub fn parse_query(query_string: &str) -> Result<RadixQuery, AtlasError> {
-    Ok(radix::parse_query(query_string)?)
-}*/
-
 pub fn parse_query(query_string: &str)
         -> Result<(BooleanExpression<u64>, RadixQuery), AtlasError> {
     // test if query is valid

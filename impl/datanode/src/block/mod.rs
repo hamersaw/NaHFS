@@ -34,54 +34,65 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
         data_directory, block_id))?;
     meta_file.read_to_end(&mut metadata_buf)?;
 
-    let mut bm_proto = BlockMetadataProto
+    let bm_proto = BlockMetadataProto
         ::decode_length_delimited(&metadata_buf)?;
 
     // open file
     let mut file = File::open(&format!("{}/blk_{}",
         data_directory, block_id))?;
 
-    let mut buf_index = 0;
-    let mut remaining_offset = offset;
-    if let Some(bi_proto) = &mut bm_proto.index {
-        for i in 0..bi_proto.geohashes.len() {
-            // compute geohash key for last character in geohash
-            let c = bi_proto.geohashes[i].pop().unwrap_or('x');
-            let geohash_key = match shared::geohash_char_to_value(c) {
-                Ok(geohash_key) => geohash_key,
-                Err(e) => {
-                    warn!("failed to parse geohash: {}", e);
-                    continue;
-                },
-            };
+    if let Some(mut bi_proto) = bm_proto.index {
+        if let Some(si_proto) = &mut bi_proto.spatial_index {
+            for i in 0..si_proto.geohashes.len() {
+                let mut buf_index = 0;
+                let mut remaining_offset = offset;
 
-            if geohashes.contains(&geohash_key) {
-                // if valid geohash -> process geohash 
-                let mut start_index = bi_proto.start_indices[i] as u64;
-                let end_index = bi_proto.end_indices[i] as u64;
+                // compute geohash key for last character in geohash
+                let c = si_proto.geohashes[i].pop().unwrap_or('x');
+                let geohash_key = match shared::geohash_char_to_value(c) {
+                    Ok(geohash_key) => geohash_key,
+                    Err(e) => {
+                        warn!("failed to parse geohash: {}", e);
+                        continue;
+                    },
+                };
 
-                while start_index < end_index {
-                    let index_length = end_index - start_index;
+                if geohashes.contains(&geohash_key) {
+                    // if valid geohash -> process geohash 
+                    let mut start_index = si_proto.start_indices[i] as u64;
+                    let end_index = si_proto.end_indices[i] as u64;
 
-                    if remaining_offset > 0 {
-                        // skip byte_count bytes for block offset
-                        let byte_count = std::cmp
-                            ::min(remaining_offset, index_length);
+                    while start_index < end_index {
+                        let index_length = end_index - start_index;
 
-                        start_index += byte_count;
-                        remaining_offset -= byte_count;
-                    } else {
-                        // read index_length bytes into buf
-                        file.seek(SeekFrom::Start(start_index))?;
-                        file.read_exact(&mut buf[buf_index..
-                            buf_index + (index_length as usize)])?;
+                        if remaining_offset > 0 {
+                            // skip byte_count bytes for block offset
+                            let byte_count = std::cmp
+                                ::min(remaining_offset, index_length);
 
-                        buf_index += index_length as usize;
-                        start_index += index_length;
+                            start_index += byte_count;
+                            remaining_offset -= byte_count;
+                        } else {
+                            // read index_length bytes into buf
+                            file.seek(SeekFrom::Start(start_index))?;
+                            file.read_exact(&mut buf[buf_index..
+                                buf_index + (index_length as usize)])?;
+
+                            buf_index += index_length as usize;
+                            start_index += index_length;
+                        }
                     }
                 }
             }
+        } else {
+            // SpatialIndexProto does not exist
+            file.seek(SeekFrom::Start(offset))?;
+            file.read_exact(buf)?;
         }
+    } else {
+        // BlockIndexProto does not exist
+        file.seek(SeekFrom::Start(offset))?;
+        file.read_exact(buf)?;
     }
 
     Ok(())

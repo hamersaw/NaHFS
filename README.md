@@ -2,6 +2,12 @@
 ## DESCRIPTION
 Atlas is a distributed, spatio-temporal file system presenting an HDFS compatible interface.
 
+## FILE FORMATS
+- CsvPoint(timestamp_index:0, latitude_index:1, longitude_index:2)
+- CsvLine(...)
+- CsvPolygon(...)
+- Wkt(timestamp_index:1, spatial_index:0)
+
 ## COMMANDS
 #### HDFS
     ./bin/hdfs dfs -mkdir -p /user/hamersaw
