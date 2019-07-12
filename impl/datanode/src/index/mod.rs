@@ -12,7 +12,7 @@ use data_format::DataFormat;
 use spatial_format::SpatialFormat;
 use temporal_format::TemporalFormat;
 
-use std::collections::{BTreeMap,HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::io::{BufWriter, Write};
 use std::time::SystemTime;
 
