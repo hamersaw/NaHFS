@@ -18,8 +18,8 @@ pub fn process(matches: &ArgMatches, inode_matches: &ArgMatches) {
     }
 }
 
-fn persist(matches: &ArgMatches, inode_matches: &ArgMatches,
-        persist_matches: &ArgMatches) -> Result<(), AtlasError> {
+fn persist(matches: &ArgMatches, _inode_matches: &ArgMatches,
+        _persist_matches: &ArgMatches) -> Result<(), AtlasError> {
     let ipr_proto = InodePersistRequestProto::default();
 
     // send InodePersistRequestProto

@@ -56,6 +56,16 @@ impl Index {
         Ok(())
     }
 
+    pub fn get_spatial_index(&self)
+            -> &HashMap<u64, Vec<(String, u32)>> {
+        &self.spatial_map
+    }
+
+    pub fn get_temporal_index(&self)
+            -> &HashMap<u64, (u64, u64)> {
+        &self.temporal_map
+    }
+
     // returns
     //  Some(spatial entries) -> include spatial entries
     //  Some(empty) -> spatial index does not exist
@@ -69,8 +79,19 @@ impl Index {
                 for (geohash, length) in geohashes.iter() {
                     // if geohash evalutes true -> add information
                     if query.evaluate(geohash) {
-                        let c = geohash.chars().rev().next().unwrap() as u8;
-                        map.insert(c, *length);
+                        let c = geohash.chars().rev().next().unwrap();
+
+                        // convert char to geohash key
+                        let geohash_key = match shared
+                                ::geohash_char_to_value(c) {
+                            Ok(geohash_key) => geohash_key,
+                            Err(e) => {
+                                warn!("failed to parse geohash: {}", e);
+                                continue;
+                            },
+                        };
+
+                        map.insert(geohash_key, *length);
                     }
                 }
 

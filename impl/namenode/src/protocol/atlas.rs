@@ -1,7 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
 use shared::AtlasError;
-use shared::protos::{GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, InodePersistResponseProto, InodePersistRequestProto};
+use shared::protos::{BlockIndexProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
 
 use crate::file::FileStore;
 use crate::index::Index;
@@ -78,6 +78,50 @@ impl AtlasProtocol {
         Ok(())
     }
 
+    fn index_view(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+        let request = IndexViewRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let mut response = IndexViewResponseProto::default();
+
+        // process index view
+        debug!("indexView({:?})", request);
+        let index = self.index.read().unwrap();
+        let spatial_map = index.get_spatial_index();
+        let temporal_map = index.get_temporal_index();
+
+        let map = &mut response.blocks;
+
+        // process spatial index
+        for (block_id, geohash_map) in spatial_map.iter() {
+            let mut si_proto = SpatialIndexProto::default();
+            for (geohash, length) in geohash_map {
+                si_proto.geohashes.push(geohash.to_string());
+                si_proto.start_indices.push(0);
+                si_proto.end_indices.push(*length);
+            }
+
+            let mut bi_proto = BlockIndexProto::default();
+            bi_proto.spatial_index = Some(si_proto);
+            map.insert(*block_id, bi_proto);
+        }
+
+        // process temporal index
+        for (block_id, (start_timestamp, end_timestamp))
+                in temporal_map.iter() {
+            let mut ti_proto = TemporalIndexProto::default();
+            ti_proto.start_timestamp = *start_timestamp;
+            ti_proto.end_timestamp = *end_timestamp;
+
+            let mut bi_proto = map.entry(*block_id)
+                .or_insert(BlockIndexProto::default());
+            bi_proto.temporal_index = Some(ti_proto);
+        }
+
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
+    }
+
     fn inode_persist(&self, req_buf: &[u8],
             resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = InodePersistRequestProto
@@ -104,6 +148,7 @@ impl Protocol for AtlasProtocol {
             "getStoragePolicy" =>
                 self.get_storage_policy(req_buf, resp_buf)?,
             "indexReport" => self.index_report(req_buf, resp_buf)?,
+            "indexView" => self.index_view(req_buf, resp_buf)?,
             "inodePersist" => self.inode_persist(req_buf, resp_buf)?,
             _ => error!("unimplemented method '{}'", method),
         }

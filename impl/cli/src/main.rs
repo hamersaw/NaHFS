@@ -3,6 +3,7 @@ extern crate clap;
 
 use clap::App;
 
+mod index;
 mod inode;
 
 fn main() {
@@ -11,14 +12,8 @@ fn main() {
 
     // parse subcommands
     match matches.subcommand() {
-        ("index", Some(index_matches)) => {
-            match matches.subcommand() {
-                ("view", Some(view_matches)) => {
-                    // TODO - "index view"
-                },
-                (cmd, _) => println!("unknown subcommand '{}'", cmd),
-            }
-        },
+        ("index", Some(index_matches)) =>
+            index::process(&matches, &index_matches),
         ("inode", Some(inode_matches)) =>
             inode::process(&matches, &inode_matches),
         (cmd, _) => println!("unknown subcommand '{}'", cmd),

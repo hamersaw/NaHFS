@@ -47,6 +47,13 @@ message IndexReportResponseProto {
 /**
  * cli communication messages
  */
+message IndexViewRequestProto {
+}
+
+message IndexViewResponseProto {
+    map<uint64, BlockIndexProto> blocks = 1;
+}
+
 message InodePersistRequestProto {
 }
 
