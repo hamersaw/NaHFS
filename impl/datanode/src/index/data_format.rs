@@ -118,7 +118,7 @@ pub fn get_delimited_field<'a>(index: usize,
             format!("field index '{}' out of bounds for \
             '{}' length string with '{}' delimiters", 
             index, data.len(), delimiters.len()))),
-        x if x == delimiters.len() => (delimiters[x] + 1, data.len()),
+        x if x == delimiters.len() => (delimiters[x-1] + 1, data.len()-2),
         x => (delimiters[x-1] + 1, delimiters[x]),
     };
 

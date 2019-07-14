@@ -43,10 +43,10 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
 
     if let Some(mut bi_proto) = bm_proto.index {
         if let Some(si_proto) = &mut bi_proto.spatial_index {
-            for i in 0..si_proto.geohashes.len() {
-                let mut buf_index = 0;
-                let mut remaining_offset = offset;
+            let mut buf_index = 0;
+            let mut remaining_offset = offset;
 
+            for i in 0..si_proto.geohashes.len() {
                 // compute geohash key for last character in geohash
                 let c = si_proto.geohashes[i].pop().unwrap_or('x');
                 let geohash_key = match shared::geohash_char_to_value(c) {

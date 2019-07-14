@@ -154,12 +154,13 @@ impl Indexer {
         // if SpatialIndex is not empty -> process
         if spatial_index.len() != 0 {
             // compute geohash length properties
-            let (mut match_len, mut max_len) =
-                (std::usize::MAX, std::usize::MIN);
+            let (mut match_len, mut max_len);
             {
                 // collect geohash vector
                 let geohash_vec: Vec<&String> =
                     spatial_index.keys().collect();
+                match_len = geohash_vec[0].len();
+                max_len = geohash_vec[0].len();
 
                 // compute minimum and maximum geohash length
                 for geohash in geohash_vec.iter() {

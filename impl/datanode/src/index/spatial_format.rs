@@ -2,8 +2,6 @@ use shared::AtlasError;
 
 use crate::index::data_format::get_delimited_field;
 
-use std::time::SystemTime;
-
 pub enum SpatialFormat {
     Point {latitude_index: usize, longitude_index: usize},
     Wkt {spatial_index: usize},
