@@ -1,5 +1,5 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, RenewLeaseResponseProto, RenewLeaseRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
+use hdfs_protos::hadoop::hdfs::{AddBlockResponseProto, AddBlockRequestProto, BlockStoragePolicyProto, CompleteResponseProto, CompleteRequestProto, CreateResponseProto, CreateRequestProto, DirectoryListingProto, GetBlockLocationsResponseProto, GetBlockLocationsRequestProto, GetFileInfoResponseProto, GetFileInfoRequestProto, GetListingResponseProto, GetListingRequestProto, GetServerDefaultsResponseProto, GetServerDefaultsRequestProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, MkdirsResponseProto, MkdirsRequestProto, RenameResponseProto, RenameRequestProto, RenewLeaseResponseProto, RenewLeaseRequestProto, SetStoragePolicyResponseProto, SetStoragePolicyRequestProto};
 use prost::Message;
 use shared::AtlasError;
 
@@ -315,6 +315,31 @@ impl ClientNamenodeProtocol {
         Ok(())
     }
 
+    fn get_storage_policy(&self, req_buf: &[u8],
+              resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+        let request = GetStoragePolicyRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let mut response = GetStoragePolicyResponseProto::default();
+
+        // get storage policy
+        debug!("getStoragePolicy({:?})", request);
+        let file_store = self.file_store.read().unwrap();
+        if let Some(file) = file_store.get_file(&request.path) {
+            if let Some(storage_policy_id) =
+                    file_store.get_storage_policy_id(&file.get_inode()) {
+                let mut bsp_proto = BlockStoragePolicyProto::default();
+                bsp_proto.policy_id = storage_policy_id;
+                bsp_proto.name = file_store.get_storage_policy_str(
+                    &storage_policy_id).unwrap().to_string();
+
+                response.storage_policy = bsp_proto;
+            }
+        }
+
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
+    }
+
     fn mkdirs(&self, user: &str, req_buf: &[u8],
               resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
         let request = MkdirsRequestProto
@@ -391,6 +416,7 @@ impl Protocol for ClientNamenodeProtocol {
             "getFileInfo" => self.get_file_info(req_buf, resp_buf)?,
             "getListing" => self.get_listing(req_buf, resp_buf)?,
             "getServerDefaults" => self.get_server_defaults(req_buf, resp_buf)?,
+            "getStoragePolicy" => self.get_storage_policy(req_buf, resp_buf)?,
             "mkdirs" => self.mkdirs(user, req_buf, resp_buf)?,
             "rename" => self.rename(req_buf, resp_buf)?,
             "renewLease" => self.renew_lease(req_buf, resp_buf)?,
