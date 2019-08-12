@@ -61,8 +61,7 @@ fn main() {
     let listener = listener_result.unwrap();
 
     // initialize Server
-    let mut server = Server::new(listener,
-        config.thread_count, config.socket_wait_ms);
+    let mut server = Server::new(listener, config.socket_wait_ms);
     info!("initialized transfer server");
 
     // start server
@@ -103,9 +102,7 @@ pub struct Config {
     ip_address: String,
     #[structopt(short="p", long="port", default_value="8020")]
     port: u32,
-    #[structopt(short="t", long="thread_count", default_value="4")]
-    thread_count: u8,
-    #[structopt(short="w", long="socket_wait_ms", default_value="50")]
+    #[structopt(short="w", long="socket_wait_ms", default_value="25")]
     socket_wait_ms: u64,
     #[structopt(short="a", long="namenode_ip_address", default_value="127.0.0.1")]
     namenode_ip_address: String,

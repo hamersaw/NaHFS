@@ -89,8 +89,7 @@ fn main() {
     let listener = listener_result.unwrap();
 
     // initialize Server
-    let mut server = Server::new(listener,
-        config.thread_count, config.socket_wait_ms);
+    let mut server = Server::new(listener, config.socket_wait_ms);
     info!("initialized rpc server");
 
     // register protocols
@@ -113,8 +112,8 @@ fn main() {
         Box::new(atlas_protocol));
  
     // start server
-    if let Err(e) =
-            server.start(Arc::new(RwLock::new(Box::new(protocols)))) {
+    if let Err(e) = server.start_threadpool(config.thread_count,
+            Arc::new(RwLock::new(Box::new(protocols)))) {
         error!("failed to start rpc server: {}", e);
     }
     info!("started rpc server");

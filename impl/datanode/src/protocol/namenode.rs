@@ -207,7 +207,7 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
     let mut hr_proto = HeartbeatRequestProto::default();
     hr_proto.registration = super::to_datanode_registration_proto(config);
     hr_proto.reports.push(sr_proto);
-    hr_proto.xceiver_count = Some(config.thread_count as u32);
+    hr_proto.xceiver_count = Some(1);
     hr_proto.cache_capacity = Some(0);
     hr_proto.cache_used = Some(0);
     // TODO - populate rest of HeartbeatRequestProto
