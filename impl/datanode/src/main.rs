@@ -102,7 +102,7 @@ pub struct Config {
     ip_address: String,
     #[structopt(short="p", long="port", default_value="8020")]
     port: u32,
-    #[structopt(short="w", long="socket_wait_ms", default_value="25")]
+    #[structopt(short="w", long="socket_wait_ms", default_value="50")]
     socket_wait_ms: u64,
     #[structopt(short="a", long="namenode_ip_address", default_value="127.0.0.1")]
     namenode_ip_address: String,

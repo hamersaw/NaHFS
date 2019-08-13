@@ -10,6 +10,7 @@ use crate::block::BlockProcessor;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::RwLock;
+use std::time::SystemTime;
 
 static PROTOCOL_VERSION: u16 = 28;
 static FIRST_BIT_U64: u64 = 9223372036854775808;
@@ -139,6 +140,7 @@ impl StreamHandler for TransferStreamHandler {
                     stream.write_all(&resp_buf)?;
 
                     // read block from file
+                    let read_start = SystemTime::now();
                     let processor = self.processor.read().unwrap();
                     let mut buf = vec![0u8; len as usize];
 
@@ -160,13 +162,24 @@ impl StreamHandler for TransferStreamHandler {
                     }
  
                     // send block
-                    let mut block_stream = BlockOutputStream::new(
-                        stream.try_clone()?, offset as i64,
-                        chunk_size_bytes, chunks_per_packet);
-                    block_stream.write_all(&mut buf)?;
-                    block_stream.close();
+                    match orb_proto.header.client_name.as_str() {
+                        "direct-client" => {
+                            stream.write_all(&buf)?;
+                            let _ = stream.read_u8()?;
+                        },
+                        _ => {
+                            let mut block_stream = BlockOutputStream::new(
+                                stream.try_clone()?, offset as i64,
+                                chunk_size_bytes, chunks_per_packet);
+                            block_stream.write_all(&mut buf)?;
+                            block_stream.close();
+                        },
+                    }
 
-                    debug!("wrote {} bytes from block", buf.len());
+                    let read_duration =
+                        SystemTime::now().duration_since(read_start);
+                    debug!("read block {} with length {} in {:?}",
+                        block_id, buf.len(), read_duration);
                 },
                 82 => {
                     // parse block metadata op
