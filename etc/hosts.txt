@@ -1,6 +1,6 @@
-namenode    0       127.0.0.1   9000    /home/hamersaw/Development/atlas/data/namenode.bin
-datanode    0       127.0.0.1   8020    /home/hamersaw/Development/atlas/data/0
-datanode    1       127.0.0.1   8021    /home/hamersaw/Development/atlas/data/1
-datanode    2       127.0.0.1   8022    /home/hamersaw/Development/atlas/data/2
-datanode    3       127.0.0.1   8023    /home/hamersaw/Development/atlas/data/3
-datanode    4       127.0.0.1   8024    /home/hamersaw/Development/atlas/data/4
+namenode    0       127.0.0.1   9000    /tmp/NahFS/data/namenode.bin
+datanode    0       127.0.0.1   8020    /tmp/NahFS/data/0
+datanode    1       127.0.0.1   8021    /tmp/NahFS/data/1
+datanode    2       127.0.0.1   8022    /tmp/NahFS/data/2
+datanode    3       127.0.0.1   8023    /tmp/NahFS/data/3
+datanode    4       127.0.0.1   8024    /tmp/NahFS/data/4
