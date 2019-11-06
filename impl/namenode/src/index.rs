@@ -1,7 +1,7 @@
 use prefix_query::{self, PrefixExpression, PrefixOperation};
 use query::{self, BinaryExpression, CompareExpression, CompareOp, ConstantExpression, EvaluateExpression};
 use regex::Regex;
-use shared::{self, AtlasError};
+use shared::{self, NahFSError};
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -22,7 +22,7 @@ impl Index {
     }
 
     pub fn add_spatial_index(&mut self, block_id: u64, geohash: &str,
-            length: u32) -> Result<(), AtlasError> {
+            length: u32) -> Result<(), NahFSError> {
         // add block entry in spatial map 
         let geohashes = self.spatial_map.entry(block_id)
             .or_insert(Vec::new());
@@ -44,7 +44,7 @@ impl Index {
 
     pub fn add_temporal_index(&mut self, block_id: u64, 
             start_timestamp: u64, end_timestamp: u64)
-            -> Result<(), AtlasError> {
+            -> Result<(), NahFSError> {
         // check if block already exists
         if !self.temporal_map.contains_key(&block_id) {
             trace!("inserting new timestamp index {} : ({}, {})",
@@ -116,11 +116,11 @@ impl Index {
 }
 
 pub fn parse_query(query_string: &str) -> Result<(Option<SpatialQuery>,
-        Option<TemporalQuery>), AtlasError> {
+        Option<TemporalQuery>), NahFSError> {
     // test if query is valid
     let regex = Regex::new(r"^(\w+(=|!=|<|<=|>|>=)\w+)?(&\s*\w+(=|!=|<|<=|>|>=)\w+)?$")?;
     if !regex.is_match(query_string) {
-        return Err(AtlasError::from("misformatted input string"));
+        return Err(NahFSError::from("misformatted input string"));
     }
 
     // parse query expressions
@@ -138,7 +138,7 @@ pub fn parse_query(query_string: &str) -> Result<(Option<SpatialQuery>,
                         PrefixOperation::Equal),
                     "!=" => PrefixExpression::new(expr[3].to_string(),
                         PrefixOperation::NotEqual),
-                    _ => return Err(AtlasError::from(
+                    _ => return Err(NahFSError::from(
                         format!("'{}' unsuported on geohashes", &expr[2]))),
                 };
 
@@ -160,13 +160,13 @@ pub fn parse_query(query_string: &str) -> Result<(Option<SpatialQuery>,
                         constant_expr, CompareOp::GreaterThan),
                     ">=" => CompareExpression::<u64>::new(evaluate_expr,
                         constant_expr, CompareOp::GreaterThanOrEqualTo),
-                    _ => return Err(AtlasError::from(
+                    _ => return Err(NahFSError::from(
                         format!("'{}' unsuported on timestamp", &expr[2]))),
                 };
 
                 temporal_expressions.push(Box::new(temporal_expression));
             },
-            _ => return Err(AtlasError::from(
+            _ => return Err(NahFSError::from(
                 format!("unsupported variable: '{}'", &expr[1]))),
         }
     }

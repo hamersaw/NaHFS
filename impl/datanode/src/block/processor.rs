@@ -1,6 +1,6 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
 use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
-use shared::AtlasError;
+use shared::NahFSError;
 use shared::protos::BlockMetadataProto;
 
 use crate::index::IndexStore;
@@ -76,17 +76,17 @@ impl BlockProcessor {
     }
 
     pub fn read(&self, block_id: u64, offset: u64,
-            buf: &mut [u8]) -> Result<(), AtlasError> {
+            buf: &mut [u8]) -> Result<(), NahFSError> {
         super::read_block(block_id, offset, &self.data_directory, buf)
     }
 
     pub fn read_indexed(&self, block_id: u64, geohashes: &Vec<u8>,
-            offset: u64, buf: &mut [u8]) -> Result<(), AtlasError> {
+            offset: u64, buf: &mut [u8]) -> Result<(), NahFSError> {
         super::read_indexed_block(block_id,
             geohashes, offset, &self.data_directory, buf)
     }
 
-    pub fn start(&mut self) -> Result<(), AtlasError> {
+    pub fn start(&mut self) -> Result<(), NahFSError> {
         for _ in 0..self.thread_count {
             // clone variables
             let index_store_clone = self.index_store.clone();
@@ -184,7 +184,7 @@ fn process_loop(index_store: Arc<RwLock<IndexStore>>,
 }
 
 fn index_block(index_store: &Arc<RwLock<IndexStore>>,
-        block_op: &mut BlockOperation) -> Result<(), AtlasError> {
+        block_op: &mut BlockOperation) -> Result<(), NahFSError> {
     // parse storage_policy_id and get Indexer
     let storage_policy_id = block_op.bm_proto.block_id as u32;
 

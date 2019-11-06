@@ -1,4 +1,4 @@
-use shared::AtlasError;
+use shared::NahFSError;
 
 use crate::index::{SpatialIndex, TemporalIndex};
 use crate::index::spatial_format::SpatialFormat;
@@ -11,7 +11,7 @@ pub enum DataFormat {
 impl DataFormat {
     pub fn process(&self, data: &Vec<u8>, spatial_format: &SpatialFormat,
             spatial_index: &mut SpatialIndex, temporal_format: &TemporalFormat,
-            temporal_index: &mut TemporalIndex) -> Result<(), AtlasError> {
+            temporal_index: &mut TemporalIndex) -> Result<(), NahFSError> {
         // index data
         match self {
             DataFormat::Delimited {delimiter} => process_delimited(
@@ -111,10 +111,10 @@ fn process_delimited(data: &Vec<u8>, delimiter: u8,
 
 pub fn get_delimited_field<'a>(index: usize,
         data: &'a [u8], delimiters: &Vec<usize>)
-        -> Result<std::borrow::Cow<'a, str>, AtlasError> {
+        -> Result<std::borrow::Cow<'a, str>, NahFSError> {
     let (start_index, end_index) = match index {
         0 => (0, delimiters[0]),
-        x if x > delimiters.len() => return Err(AtlasError::from(
+        x if x > delimiters.len() => return Err(NahFSError::from(
             format!("field index '{}' out of bounds for \
             '{}' length string with '{}' delimiters", 
             index, data.len(), delimiters.len()))),

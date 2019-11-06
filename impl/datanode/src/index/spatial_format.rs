@@ -1,4 +1,4 @@
-use shared::AtlasError;
+use shared::NahFSError;
 
 use crate::index::data_format::get_delimited_field;
 
@@ -9,7 +9,7 @@ pub enum SpatialFormat {
 
 impl SpatialFormat {
     pub fn parse_vec(&self, data: &[u8], delimiters: &Vec<usize>)
-            -> Result<Option<String>, AtlasError> {
+            -> Result<Option<String>, NahFSError> {
         match self {
             SpatialFormat::Point {latitude_index, longitude_index} => {
                 // parse point fields
@@ -88,7 +88,7 @@ impl SpatialFormat {
 
                 // return geohash
                 match match_length {
-                    0 => Err(AtlasError::from("unable to geohash bound wkt object")),
+                    0 => Err(NahFSError::from("unable to geohash bound wkt object")),
                     _ => Ok(Some(a[..match_length].to_string())),
                 }
             },

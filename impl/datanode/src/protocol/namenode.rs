@@ -3,7 +3,7 @@ use hdfs_comm::rpc::Client;
 use hdfs_protos::hadoop::hdfs::StorageReportProto;
 use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
 use prost::Message;
-use shared::AtlasError;
+use shared::NahFSError;
 use shared::protos::{BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};
 
 use crate::Config;
@@ -29,7 +29,7 @@ impl NamenodeProtocol {
         }
     }
 
-    pub fn start(&mut self) -> Result<(), AtlasError> {
+    pub fn start(&mut self) -> Result<(), NahFSError> {
         // initialize RegisterDatanodeRequestProto
         let mut rdr_proto = RegisterDatanodeRequestProto::default();
         rdr_proto.registration =
@@ -104,7 +104,7 @@ impl NamenodeProtocol {
 }
 
 fn block_report(config: &Config, block_timestamp: u64)
-        -> Result<u64, AtlasError> {
+        -> Result<u64, NahFSError> {
     // initialize StorageBlockReportProto
     let mut sbr_proto = StorageBlockReportProto::default();
     sbr_proto.storage = super::to_datanode_storage_proto(config);;
@@ -229,7 +229,7 @@ fn heartbeat(config: &Config) -> std::io::Result<()> {
 }
 
 fn index_report(config: &Config, index_timestamp: u64)
-        -> Result<u64, AtlasError> {
+        -> Result<u64, NahFSError> {
     // initialize IndexReportRequestProto
     let mut irr_proto = IndexReportRequestProto::default();
     let block_ids = &mut irr_proto.block_ids;
@@ -273,7 +273,7 @@ fn index_report(config: &Config, index_timestamp: u64)
 
     // write IndexReportRequestProto 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
-    let (_, resp_buf) = client.write_message("com.bushpath.atlas.protocol.AtlasProtocol", "indexReport", irr_proto)?;
+    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "indexReport", irr_proto)?;
 
     // read response
     let _ = IndexReportResponseProto

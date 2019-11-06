@@ -1,6 +1,6 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
-use shared::AtlasError;
+use shared::NahFSError;
 use shared::protos::{BlockIndexProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
 
 use crate::file::FileStore;
@@ -10,16 +10,16 @@ use std::fs::File;
 use std::io::{Write};
 use std::sync::{Arc, RwLock};
 
-pub struct AtlasProtocol {
+pub struct NahFSProtocol {
     file_store: Arc<RwLock<FileStore>>,
     index: Arc<RwLock<Index>>,
     persist_path: String,
 }
 
-impl AtlasProtocol {
+impl NahFSProtocol {
     pub fn new(file_store: Arc<RwLock<FileStore>>,
-            index: Arc<RwLock<Index>>, persist_path: &str) -> AtlasProtocol {
-        AtlasProtocol {
+            index: Arc<RwLock<Index>>, persist_path: &str) -> NahFSProtocol {
+        NahFSProtocol {
             file_store: file_store,
             index: index,
             persist_path: persist_path.to_string(),
@@ -27,7 +27,7 @@ impl AtlasProtocol {
     }
 
     fn get_storage_policy(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), NahFSError> {
         let request = GetStoragePolicyRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = GetStoragePolicyResponseProto::default();
@@ -38,7 +38,7 @@ impl AtlasProtocol {
         match file_store.get_storage_policy_str(&request.id) {
             Some(storage_policy) =>
                 response.storage_policy = storage_policy.to_owned(),
-            None => return Err(AtlasError::from(
+            None => return Err(NahFSError::from(
                 format!("storage policy {} not found", request.id))),
         }
 
@@ -47,7 +47,7 @@ impl AtlasProtocol {
     }
 
     fn index_report(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), NahFSError> {
         let request = IndexReportRequestProto
             ::decode_length_delimited(req_buf)?;
         let response = IndexReportResponseProto::default();
@@ -79,7 +79,7 @@ impl AtlasProtocol {
     }
 
     fn index_view(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), NahFSError> {
         let request = IndexViewRequestProto
             ::decode_length_delimited(req_buf)?;
         let mut response = IndexViewResponseProto::default();
@@ -123,7 +123,7 @@ impl AtlasProtocol {
     }
 
     fn inode_persist(&self, req_buf: &[u8],
-            resp_buf: &mut Vec<u8>) -> Result<(), AtlasError> {
+            resp_buf: &mut Vec<u8>) -> Result<(), NahFSError> {
         let request = InodePersistRequestProto
             ::decode_length_delimited(req_buf)?;
         let response = InodePersistResponseProto::default();
@@ -141,7 +141,7 @@ impl AtlasProtocol {
     }
 }
 
-impl Protocol for AtlasProtocol {
+impl Protocol for NahFSProtocol {
     fn process(&self, _user: &Option<String>, method: &str,
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {

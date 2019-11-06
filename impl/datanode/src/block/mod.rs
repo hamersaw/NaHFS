@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use prost::Message;
-use shared::{self, AtlasError};
+use shared::{self, NahFSError};
 use shared::protos::BlockMetadataProto;
 
 mod processor;
@@ -14,7 +14,7 @@ use std::net::TcpStream;
 use std::time::SystemTime;
 
 fn read_block(block_id: u64, offset: u64, data_directory: &str,
-        buf: &mut [u8]) -> Result<(), AtlasError> {
+        buf: &mut [u8]) -> Result<(), NahFSError> {
     // open file
     let mut file = File::open(&format!("{}/blk_{}",
         data_directory, block_id))?;
@@ -27,7 +27,7 @@ fn read_block(block_id: u64, offset: u64, data_directory: &str,
 }
 
 fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
-        data_directory: &str, buf: &mut [u8]) -> Result<(), AtlasError> {
+        data_directory: &str, buf: &mut [u8]) -> Result<(), NahFSError> {
     // read block metadata
     let mut metadata_buf = Vec::new();
     let mut meta_file = File::open(format!("{}/blk_{}.meta", 
@@ -99,7 +99,7 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
 }
 
 fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
-        bm_proto: &BlockMetadataProto) -> Result<(), AtlasError> {
+        bm_proto: &BlockMetadataProto) -> Result<(), NahFSError> {
     let now = SystemTime::now();
 
     // iterate over replicas
@@ -138,7 +138,7 @@ fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
 }
 
 fn write_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
-        data_directory: &str) -> Result<(), AtlasError> {
+        data_directory: &str) -> Result<(), NahFSError> {
     let now = SystemTime::now();
 
     // write block

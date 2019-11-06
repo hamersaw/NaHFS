@@ -1,6 +1,6 @@
-# ATLAS
+# NahFS
 ## DESCRIPTION
-Atlas is a distributed, spatio-temporal file system presenting an HDFS compatible interface.
+NahFS (Needle and Hand File System) is a distributed, spatio-temporal file system presenting an HDFS compatible interface.
 
 ## FILE FORMATS
 - CsvPoint(timestamp_index:3, latitude_index:0, longitude_index:1)

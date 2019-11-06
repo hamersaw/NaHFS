@@ -4,7 +4,7 @@ extern crate structopt;
 
 use communication::Server;
 use hdfs_comm::rpc::Protocols;
-use shared::AtlasError;
+use shared::NahFSError;
 use structopt::StructOpt;
 
 mod block;
@@ -18,7 +18,7 @@ use block::BlockStore;
 use datanode::DatanodeStore;
 use file::FileStore;
 use index::Index;
-use protocol::{ClientNamenodeProtocol, DatanodeProtocol, AtlasProtocol};
+use protocol::{ClientNamenodeProtocol, DatanodeProtocol, NahFSProtocol};
 use storage::StorageStore;
 
 use std::fs::File;
@@ -106,10 +106,10 @@ fn main() {
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
         Box::new(datanode_protocol));
 
-    let atlas_protocol = AtlasProtocol::new(file_store.clone(),
+    let nahfs_protocol = NahFSProtocol::new(file_store.clone(),
         index.clone(), &config.persist_path);
-    protocols.register("com.bushpath.atlas.protocol.AtlasProtocol",
-        Box::new(atlas_protocol));
+    protocols.register("com.bushpath.nahfs.protocol.NahFSProtocol",
+        Box::new(nahfs_protocol));
  
     // start server
     if let Err(e) = server.start_threadpool(config.thread_count,
@@ -122,7 +122,7 @@ fn main() {
     std::thread::park();
 }
 
-fn read_file_store(path: &str) -> Result<FileStore, AtlasError> {
+fn read_file_store(path: &str) -> Result<FileStore, NahFSError> {
     let mut file = File::open(path)?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;

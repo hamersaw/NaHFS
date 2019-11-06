@@ -1,5 +1,5 @@
 use clap::ArgMatches;
-use shared::AtlasError;
+use shared::NahFSError;
 
 use hdfs_comm::rpc::Client;
 use prost::Message;
@@ -10,7 +10,7 @@ pub fn process(matches: &ArgMatches, inode_matches: &ArgMatches) {
         ("persist", Some(persist_matches)) => {
             persist(&matches, &inode_matches, &persist_matches)
         },
-        (cmd, _) => Err(AtlasError::from(format!("unknown subcommand '{}'", cmd))),
+        (cmd, _) => Err(NahFSError::from(format!("unknown subcommand '{}'", cmd))),
     };
 
     if let Err(e) = result {
@@ -19,14 +19,14 @@ pub fn process(matches: &ArgMatches, inode_matches: &ArgMatches) {
 }
 
 fn persist(matches: &ArgMatches, _inode_matches: &ArgMatches,
-        _persist_matches: &ArgMatches) -> Result<(), AtlasError> {
+        _persist_matches: &ArgMatches) -> Result<(), NahFSError> {
     let ipr_proto = InodePersistRequestProto::default();
 
     // send InodePersistRequestProto
     let ip_address = matches.value_of("ip_address").unwrap();
     let port = matches.value_of("port").unwrap().parse::<u16>()?;
     let mut client = Client::new(ip_address, port)?;
-    let (_, resp_buf) = client.write_message("com.bushpath.atlas.protocol.AtlasProtocol", "inodePersist", ipr_proto)?;
+    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "inodePersist", ipr_proto)?;
 
     // read respnose
     let _ = InodePersistResponseProto

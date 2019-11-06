@@ -1,7 +1,7 @@
 use hdfs_comm::rpc::Client;
 use prost::Message;
 use regex::Regex;
-use shared::AtlasError;
+use shared::NahFSError;
 use shared::protos::{BlockIndexProto, BlockMetadataProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, SpatialIndexProto, TemporalIndexProto};
 
 mod data_format;
@@ -43,9 +43,9 @@ impl IndexStore {
     }
 
     pub fn retrieve_index(&mut self, id: &u32)
-            -> Result<(), AtlasError> {
+            -> Result<(), NahFSError> {
         if self.map.contains_key(id) {
-            return Err(AtlasError::from(
+            return Err(NahFSError::from(
                 format!("index '{}' already exists", id)));
         }
 
@@ -58,7 +58,7 @@ impl IndexStore {
 
         // send GetStoragePolicyRequestProto
         let mut client = Client::new(&self.ip_address, self.port)?;
-        let (_, resp_buf) = client.write_message("com.bushpath.atlas.protocol.AtlasProtocol", "getStoragePolicy", req)?;
+        let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "getStoragePolicy", req)?;
 
         // read response
         let resp = GetStoragePolicyResponseProto
@@ -80,14 +80,14 @@ pub struct Indexer {
 }
 
 impl Indexer {
-    pub fn from(string: &String) -> Result<Indexer, AtlasError> {
+    pub fn from(string: &String) -> Result<Indexer, NahFSError> {
         // compile regexes
         let regex = Regex::new(r"(\w+)\((\w+:\w+)?(,\s*\w+:\w+)*\)")?;
         let fields_regex = Regex::new(r"(\w+):(\w+)")?;
 
         // check for match
         if !regex.is_match(string) {
-            return Err(AtlasError::from(format!(
+            return Err(NahFSError::from(format!(
                 "unable to parse storage policy {}", string)));
         }
 
@@ -123,7 +123,7 @@ impl Indexer {
                 },
                 TemporalFormat::None,
             ),
-            _ => return Err(AtlasError::from(
+            _ => return Err(NahFSError::from(
                 format!("unsupported indexer type {}", &caps[1]))),
         };
 
@@ -137,7 +137,7 @@ impl Indexer {
     }
 
     pub fn process(&self, data: &Vec<u8>, bm_proto: &BlockMetadataProto)
-            -> Result<(Vec<u8>, BlockIndexProto), AtlasError> {
+            -> Result<(Vec<u8>, BlockIndexProto), NahFSError> {
         let now = SystemTime::now();
         let mut spatial_index = SpatialIndex::new();
         let mut temporal_index = (std::u64::MAX, std::u64::MIN);
