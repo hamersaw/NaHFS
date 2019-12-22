@@ -123,7 +123,7 @@ impl StreamHandler for TransferStreamHandler {
                     let len = orb_proto.len;
  
                     // send op respone
-                    let mut c_proto = ChecksumProto::default();;
+                    let mut c_proto = ChecksumProto::default();
                     c_proto.bytes_per_checksum = chunk_size_bytes;
 
                     let mut roci_proto =

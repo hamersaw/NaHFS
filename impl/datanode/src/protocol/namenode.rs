@@ -107,7 +107,7 @@ fn block_report(config: &Config, block_timestamp: u64)
         -> Result<u64, NahFSError> {
     // initialize StorageBlockReportProto
     let mut sbr_proto = StorageBlockReportProto::default();
-    sbr_proto.storage = super::to_datanode_storage_proto(config);;
+    sbr_proto.storage = super::to_datanode_storage_proto(config);
 
     // read block metadata files
     let mut max_timestamp = block_timestamp;
@@ -145,7 +145,7 @@ fn block_report(config: &Config, block_timestamp: u64)
 
     // initialize BlockReportRequestProto 
     let mut brr_proto = BlockReportRequestProto::default();
-    brr_proto.registration = super::to_datanode_registration_proto(config);;
+    brr_proto.registration = super::to_datanode_registration_proto(config);
     brr_proto.reports.push(sbr_proto);
 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
