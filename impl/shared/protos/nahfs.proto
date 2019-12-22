@@ -28,6 +28,15 @@ message SpatialIndexProto {
 /**
  * datanode communication messages
  */
+message getIndexReplicasRequestProto {
+    required uint64 datanodeUuid = 1;
+    required BlockIndexProto blockIndex = 2;
+}
+
+message getIndexReplicasResponseProto {
+    repeated bytes datanodeIdProtos = 1;
+}
+
 message GetStoragePolicyRequestProto {
     required uint32 id = 1;
 }
