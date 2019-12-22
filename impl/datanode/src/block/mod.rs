@@ -137,6 +137,12 @@ fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
     Ok(())
 }
 
+fn transfer_indexed_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
+        namenode_ip_address: &str, namenode_port: u16)
+        -> Result<(), NahFSError> {
+    unimplemented!(); // TODO - consult namenode for replica information
+}
+
 fn write_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
         data_directory: &str) -> Result<(), NahFSError> {
     let now = SystemTime::now();
