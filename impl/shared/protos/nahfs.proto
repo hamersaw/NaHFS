@@ -29,7 +29,7 @@ message SpatialIndexProto {
  * datanode communication messages
  */
 message getIndexReplicasRequestProto {
-    required uint64 datanodeUuid = 1;
+    required string datanodeId = 1;
     required BlockIndexProto blockIndex = 2;
 }
 

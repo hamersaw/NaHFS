@@ -1,8 +1,9 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
 use shared::NahFSError;
-use shared::protos::{BlockIndexProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
+use shared::protos::{BlockIndexProto, GetIndexReplicasRequestProto, GetIndexReplicasResponseProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
 
+use crate::DatanodeStore;
 use crate::file::FileStore;
 use crate::index::Index;
 
@@ -11,19 +12,49 @@ use std::io::{Write};
 use std::sync::{Arc, RwLock};
 
 pub struct NahFSProtocol {
+    datanode_store: Arc<RwLock<DatanodeStore>>,
     file_store: Arc<RwLock<FileStore>>,
     index: Arc<RwLock<Index>>,
     persist_path: String,
 }
 
 impl NahFSProtocol {
-    pub fn new(file_store: Arc<RwLock<FileStore>>,
+    pub fn new(datanode_store: Arc<RwLock<DatanodeStore>>,
+            file_store: Arc<RwLock<FileStore>>,
             index: Arc<RwLock<Index>>, persist_path: &str) -> NahFSProtocol {
         NahFSProtocol {
+            datanode_store: datanode_store,
             file_store: file_store,
             index: index,
             persist_path: persist_path.to_string(),
         }
+    }
+
+    fn get_index_replicas(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahFSError> {
+        let request = GetIndexReplicasRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let mut response = GetIndexReplicasResponseProto::default();
+
+        debug!("getIndexReplicas({:?})", request);
+        // TODO - need to find number of replicas for each file
+        //  FileStore.get_replicaction(block_id: &u64)
+        //  ? - store replication in Block at BlockStore - simple block lookup
+
+        // TODO - populate random DatanodeInfoProto locations
+        let datanode_store = self.datanode_store.read().unwrap();
+        /*let ids = datanode_store.get_random_ids(*replication);
+
+        for id in ids {
+            let datanode = datanode_store.get_datanode(id).unwrap();
+            lb_proto.locs.push(super
+                ::to_datanode_info_proto(datanode, None));
+        }*/
+
+        // TODO - consult index to find nodes with collocation and / or dispersion 
+
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
     fn get_storage_policy(&self, req_buf: &[u8],
@@ -145,6 +176,8 @@ impl Protocol for NahFSProtocol {
     fn process(&self, _user: &Option<String>, method: &str,
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
+            "getIndexReplicas" =>
+                self.get_index_replicas(req_buf, resp_buf)?,
             "getStoragePolicy" =>
                 self.get_storage_policy(req_buf, resp_buf)?,
             "indexReport" => self.index_report(req_buf, resp_buf)?,

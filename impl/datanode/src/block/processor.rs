@@ -39,6 +39,7 @@ pub struct BlockProcessor {
     index_store: Arc<RwLock<IndexStore>>,
     thread_count: u8,
     data_directory: String,
+    datanode_id: String,
     namenode_ip_address: String,
     namenode_port: u16,
     operation_channel: (Sender<BlockOperation>,
@@ -49,12 +50,13 @@ pub struct BlockProcessor {
 
 impl BlockProcessor {
     pub fn new(index_store: Arc<RwLock<IndexStore>>, thread_count: u8,
-            queue_length: u8, data_directory: String,
+            queue_length: u8, data_directory: String, datanode_id: String,
             namenode_ip_address: String, namenode_port: u16) -> BlockProcessor {
         BlockProcessor {
             index_store: index_store,
             thread_count: thread_count,
             data_directory: data_directory,
+            datanode_id: datanode_id,
             namenode_ip_address: namenode_ip_address,
             namenode_port: namenode_port,
             operation_channel: crossbeam_channel
@@ -96,6 +98,7 @@ impl BlockProcessor {
             // clone variables
             let index_store_clone = self.index_store.clone();
             let data_directory_clone = self.data_directory.clone();
+            let datanode_id_clone = self.datanode_id.clone();
             let namenode_ip_address_clone = self.namenode_ip_address.clone();
             let namenode_port_clone = self.namenode_port.clone();
             let operation_sender = self.operation_channel.0.clone();
@@ -105,8 +108,9 @@ impl BlockProcessor {
             let join_handle = std::thread::spawn(move || {
                 process_loop(index_store_clone,
                     &operation_sender, &operation_receiver,
-                    &shutdown_receiver, &data_directory_clone,
-                    &namenode_ip_address_clone, namenode_port_clone);
+                    &shutdown_receiver, &data_directory_clone, 
+                    &datanode_id_clone, &namenode_ip_address_clone,
+                    namenode_port_clone);
             });
 
             self.join_handles.push(join_handle);
@@ -135,7 +139,7 @@ fn process_loop(index_store: Arc<RwLock<IndexStore>>,
         operation_sender: &Sender<BlockOperation>,
         operation_receiver: &Receiver<BlockOperation>,
         shutdown_receiver: &Receiver<bool>, data_directory: &str,
-        namenode_ip_address: &str, namenode_port: u16) {
+        datanode_id: &str, namenode_ip_address: &str, namenode_port: u16) {
     loop {
         select! {
             recv(operation_receiver) -> result => {
@@ -159,8 +163,8 @@ fn process_loop(index_store: Arc<RwLock<IndexStore>>,
                             &block_op.replicas, &block_op.bm_proto),
                     (Operation::TRANSFER, Some(_)) =>
                         super::transfer_indexed_block(&block_op.data,
-                            &block_op.bm_proto, &namenode_ip_address,
-                            namenode_port),
+                            &block_op.bm_proto, &datanode_id,
+                            &namenode_ip_address, namenode_port),
                 };
 
                 // check for error

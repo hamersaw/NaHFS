@@ -1,8 +1,9 @@
 use byteorder::{BigEndian, WriteBytesExt};
+use hdfs_comm::rpc::Client;
 use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
 use prost::Message;
 use shared::{self, NahFSError};
-use shared::protos::BlockMetadataProto;
+use shared::protos::{BlockMetadataProto, GetIndexReplicasRequestProto, GetIndexReplicasResponseProto};
 
 mod processor;
 pub use processor::BlockProcessor;
@@ -138,9 +139,38 @@ fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
 }
 
 fn transfer_indexed_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
-        namenode_ip_address: &str, namenode_port: u16)
+        datanode_id: &str, namenode_ip_address: &str, namenode_port: u16)
         -> Result<(), NahFSError> {
-    unimplemented!(); // TODO - consult namenode for replica information
+    // initialize GetIndexReplicasRequestProto
+    let mut req_proto = GetIndexReplicasRequestProto::default();
+    req_proto.datanode_id = datanode_id.to_string();
+    match &bm_proto.index {
+        Some(index) => req_proto.block_index = index.clone(),
+        None => return Err(NahFSError::from("unable to transfer_indexed_block with 'None' index")),
+    }
+
+    debug!("writing GetIndexReplicasRequestProto to {}:{}",
+        namenode_ip_address, namenode_port);
+
+    // send GetIndexReplicasRequestProto
+    let mut client = Client::new(&namenode_ip_address, namenode_port)?;
+    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "getIndexReplicas", req_proto)?;
+
+    // read respnose
+    let resp_proto = GetIndexReplicasResponseProto
+        ::decode_length_delimited(resp_buf)?;
+
+    // decode replicas
+    let mut replicas = Vec::new();
+    for i in 0..resp_proto.datanode_id_protos.len() {
+        let di_proto = DatanodeIdProto::decode_length_delimited(
+            &resp_proto.datanode_id_protos[i])?;
+
+        replicas.push(di_proto);
+    }
+
+    // transfer block
+    transfer_block(data, &replicas, bm_proto)
 }
 
 fn write_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,

@@ -41,7 +41,7 @@ fn main() {
  
     let mut processor = BlockProcessor::new(index_store.clone(),
         config.processor_thread_count, config.processor_queue_length, 
-        config.data_directory.clone(),
+        config.data_directory.clone(), config.id.clone(),
         config.namenode_ip_address.clone(), config.namenode_port);
     info!("initialized block processor");
 
@@ -107,13 +107,13 @@ pub struct Config {
     socket_wait_ms: u64,
     #[structopt(short="a", long="namenode_ip_address", default_value="127.0.0.1")]
     namenode_ip_address: String,
-    #[structopt(short="c", long="processor_thread_count", default_value="4")]
+    #[structopt(short="o", long="namenode_port", default_value="9000")]
     namenode_port: u16,
-    #[structopt(short="b", long="block_report", default_value="5000")]
+    #[structopt(short="c", long="processor_thread_count", default_value="4")]
     processor_thread_count: u8,
     #[structopt(short="q", long="processor_queue_length", default_value="32")]
     processor_queue_length: u8,
-    #[structopt(short="o", long="namenode_port", default_value="9000")]
+    #[structopt(short="b", long="block_report", default_value="5000")]
     block_report_ms: u64,
     #[structopt(short="h", long="heartbeat", default_value="2500")]
     heartbeat_ms: u64,
