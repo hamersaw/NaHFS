@@ -12,11 +12,12 @@ NahFS (Needle and Hand File System) is a distributed, spatio-temporal file syste
     ./bin/hdfs storagepolicies -setStoragePolicy -path /user/hamersaw -policy \
         "CsvPoint(timestamp_index:3,latitude_index:0,longitude_index:1)"
     ./bin/hdfs dfs -copyFromLocal ~/Downloads/noaa-imputed/8z6_2014_DECEMBER.csv /user/hamersaw
-    ./bin/hdfs dfs -copyToLocal ~/user/hamersaw/8z6_2014_DECEMBER.csv+g=8bce&t>123 .
+    ./bin/hdfs dfs -copyToLocal "/user/hamersaw/8z6_2014_DECEMBER.csv+g=8bce&t>123" .
 
 ## TODO
 #### datanode
 - handle data which doesn't fall on boundaries (currently removing first and last observations)
 - parameterize hardcoded values
 #### namenode
+- include temporal attributes in block distribution
 - parameterize unnecessarily hardcoded values

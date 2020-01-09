@@ -15,6 +15,7 @@ log = "0.4"
 prost = "0.5"
 query = { path = "../../../utilities-rs/query" }
 prefix-query = { path = "../../../utilities-rs/prefix-query" }
+radix = { path = "../../../utilities-rs/radix" }
 rand = "0.6"
 regex = "1.1"
 serde = { version = "1.0", features = ["derive"] }

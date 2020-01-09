@@ -65,15 +65,30 @@ impl ClientNamenodeProtocol {
                     0
                 };
 
-                // populate random DatanodeInfoProto locations
+                // compute datanode storage usage
                 let datanode_store = self.datanode_store.read().unwrap();
-                let ids = datanode_store.get_random_ids(*replication);
+                let storage_store = self.storage_store.read().unwrap();
+                let mut datanodes = super::get_datanode_usage(
+                    &datanode_store, &storage_store);
 
+                // choose 'replication' datanodes based on storage usage
+                while lb_proto.locs.len() < *replication as usize {
+                    let index = super::select_block_replica(&datanodes);    
+                    let datanode = datanode_store
+                        .get_datanode(&datanodes[index].0).unwrap();
+                    lb_proto.locs.push(super
+                        ::to_datanode_info_proto(datanode, None));
+
+                    datanodes.remove(index);
+                }
+
+                // TODO - remove
+                /*let ids = datanode_store.get_random_ids(*replication);
                 for id in ids {
                     let datanode = datanode_store.get_datanode(id).unwrap();
                     lb_proto.locs.push(super
                         ::to_datanode_info_proto(datanode, None));
-                }
+                }*/
 
                 // populate ExtendedBlockProto
                 let mut ex_proto = &mut lb_proto.b;

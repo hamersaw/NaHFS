@@ -106,8 +106,9 @@ fn main() {
     protocols.register("org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol",
         Box::new(datanode_protocol));
 
-    let nahfs_protocol = NahFSProtocol::new(datanode_store.clone(),
-        file_store.clone(), index.clone(), &config.persist_path);
+    let nahfs_protocol = NahFSProtocol::new(block_store.clone(),
+        datanode_store.clone(), file_store.clone(),
+        index.clone(), &config.persist_path);
     protocols.register("com.bushpath.nahfs.protocol.NahFSProtocol",
         Box::new(nahfs_protocol));
  

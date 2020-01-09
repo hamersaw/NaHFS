@@ -3,7 +3,7 @@ use prost::Message;
 use shared::NahFSError;
 use shared::protos::{BlockIndexProto, GetIndexReplicasRequestProto, GetIndexReplicasResponseProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
 
-use crate::DatanodeStore;
+use crate::{BlockStore, DatanodeStore};
 use crate::file::FileStore;
 use crate::index::Index;
 
@@ -12,6 +12,7 @@ use std::io::{Write};
 use std::sync::{Arc, RwLock};
 
 pub struct NahFSProtocol {
+    block_store: Arc<RwLock<BlockStore>>,
     datanode_store: Arc<RwLock<DatanodeStore>>,
     file_store: Arc<RwLock<FileStore>>,
     index: Arc<RwLock<Index>>,
@@ -19,10 +20,12 @@ pub struct NahFSProtocol {
 }
 
 impl NahFSProtocol {
-    pub fn new(datanode_store: Arc<RwLock<DatanodeStore>>,
+    pub fn new(block_store: Arc<RwLock<BlockStore>>,
+            datanode_store: Arc<RwLock<DatanodeStore>>,
             file_store: Arc<RwLock<FileStore>>,
             index: Arc<RwLock<Index>>, persist_path: &str) -> NahFSProtocol {
         NahFSProtocol {
+            block_store: block_store,
             datanode_store: datanode_store,
             file_store: file_store,
             index: index,
@@ -41,17 +44,52 @@ impl NahFSProtocol {
         //  FileStore.get_replicaction(block_id: &u64)
         //  ? - store replication in Block at BlockStore - simple block lookup
 
-        // TODO - populate random DatanodeInfoProto locations
+        // retrieve block spatial attributes
+        let geohashes = match request.block_index.spatial_index {
+            Some(spatial_index) => spatial_index.geohashes,
+            None => Vec::new(),
+        };
+
+        // compute spatiotemporal datanode storage usage
+        let block_store = self.block_store.read().unwrap();
         let datanode_store = self.datanode_store.read().unwrap();
-        /*let ids = datanode_store.get_random_ids(*replication);
+        let index = self.index.read().unwrap();
+        let mut datanodes = super::get_spatiotemporal_datanode_usage(
+            &block_store, &datanode_store, &index, &geohashes);
 
-        for id in ids {
-            let datanode = datanode_store.get_datanode(id).unwrap();
-            lb_proto.locs.push(super
-                ::to_datanode_info_proto(datanode, None));
-        }*/
+        // place a replica on the most used datanode
+        if request.datanode_id != datanodes.last().unwrap().0 {
+            let datanode = datanode_store
+                .get_datanode(&datanodes.last().unwrap().0).unwrap();
 
-        // TODO - consult index to find nodes with collocation and / or dispersion 
+            // serialize DatanodeIdProto
+            let di_proto = super::to_datanode_id_proto(datanode);
+            let mut buf = Vec::new();
+            di_proto.encode_length_delimited(&mut buf)?;
+
+            response.datanode_id_protos.push(buf);
+
+            // remove datanode from list
+            datanodes.remove(datanodes.len() - 1);
+        }
+
+        // choose subsequent replicas based on storage usage
+        // TODO - configure replication size
+        while response.datanode_id_protos.len() < 2 {
+           let index = super::select_block_replica(&datanodes);    
+           let datanode = datanode_store
+               .get_datanode(&datanodes[index].0).unwrap();
+
+            // serialize DatanodeIdProto
+            let di_proto = super::to_datanode_id_proto(datanode);
+            let mut buf = Vec::new();
+            di_proto.encode_length_delimited(&mut buf)?;
+
+            response.datanode_id_protos.push(buf);
+
+            // remove datanode from list
+            datanodes.remove(index);
+        }
 
         response.encode_length_delimited(resp_buf)?;
         Ok(())
@@ -93,14 +131,14 @@ impl NahFSProtocol {
             // add geohashes
             if let Some(si_proto) = &bi_proto.spatial_index {
                 for j in 0..si_proto.geohashes.len() {
-                    index.add_spatial_index(*block_id, &si_proto.geohashes[j],
+                    index.update_spatial(*block_id, &si_proto.geohashes[j],
                         si_proto.end_indices[j] - si_proto.start_indices[j])?;
                 }
             }
 
             // add time range
             if let Some(ti_proto) = &bi_proto.temporal_index {
-                index.add_temporal_index(*block_id,
+                index.update_temporal(*block_id,
                     ti_proto.start_timestamp, ti_proto.end_timestamp)?;
             }
         }
@@ -118,13 +156,10 @@ impl NahFSProtocol {
         // process index view
         debug!("indexView({:?})", request);
         let index = self.index.read().unwrap();
-        let spatial_map = index.get_spatial_index();
-        let temporal_map = index.get_temporal_index();
-
         let map = &mut response.blocks;
 
         // process spatial index
-        for (block_id, geohash_map) in spatial_map.iter() {
+        for (block_id, geohash_map) in index.spatial_iter() {
             let mut si_proto = SpatialIndexProto::default();
             for (geohash, length) in geohash_map {
                 si_proto.geohashes.push(geohash.to_string());
@@ -139,7 +174,7 @@ impl NahFSProtocol {
 
         // process temporal index
         for (block_id, (start_timestamp, end_timestamp))
-                in temporal_map.iter() {
+                in index.temporal_iter() {
             let mut ti_proto = TemporalIndexProto::default();
             ti_proto.start_timestamp = *start_timestamp;
             ti_proto.end_timestamp = *end_timestamp;

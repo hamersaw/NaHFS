@@ -1,4 +1,4 @@
-use hdfs_protos::hadoop::hdfs::{DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
+use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
 
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};
@@ -14,11 +14,91 @@ pub use client_namenode::ClientNamenodeProtocol;
 pub use datanode::DatanodeProtocol;
 pub use nahfs::NahFSProtocol;
 
+use std::collections::HashMap;
+use std::cmp::Ordering;
+
+fn get_datanode_usage(datanode_store: &DatanodeStore,
+        storage_store: &StorageStore) -> Vec<(String, u64)> {
+    let mut datanodes = Vec::new();
+
+    // compute storage usage for each registered datanode
+    for datanode in datanode_store.get_datanodes() {
+        let mut byte_count = 0;
+        for storage_id in datanode.storage_ids.iter() {
+            if let Some(storage) =
+                    storage_store.get_storage(storage_id) {
+                if let Some(state) = storage.states.last() {
+                    byte_count += state.dfs_used.unwrap_or(0);
+                }
+            }
+        }
+
+        datanodes.push((datanode.id.to_string(), byte_count));
+    }
+
+    // sort datanodes by storage usage
+    datanodes.sort_by(|a, b| a.1.partial_cmp(&b.1)
+        .unwrap_or(Ordering::Equal));
+    datanodes
+}
+
+fn get_spatiotemporal_datanode_usage(block_store: &BlockStore,
+        datanode_store: &DatanodeStore, index: &Index,
+        geohashes: &Vec<String>) -> Vec<(String, u64)> {
+    // TODO - extend to process temporal attributes as well
+
+    // initialize datanodes
+    let mut map = HashMap::new();
+    for datanode in datanode_store.get_datanodes() {
+        map.insert(datanode.id.to_string(), 0);  
+    }
+
+    // iterate over spatial attributes
+    for geohash in geohashes.iter() {
+        for (block_id, size) in index.spatial_blocks_query(geohash) {
+            // update datanodes for each block replica
+            let block = block_store.get_block(&block_id).unwrap();
+            for datanode_id in block.locations.iter() {
+                let byte_count = map.get_mut(datanode_id).unwrap();
+                *byte_count += size as u64;
+            }
+        }
+    }
+    
+    let mut datanodes: Vec<(String, u64)> = map.drain().collect();
+    datanodes.sort_by(|a, b| a.1.partial_cmp(&b.1)
+        .unwrap_or(Ordering::Equal));
+    datanodes
+}
+
+fn select_block_replica(vec: &Vec<(String, u64)>) -> usize {
+    // use a logarithmic function to favor nodes with lower utilization
+    let log_base = (vec.len() + 1) as f64;
+    let replica_token = rand::random::<f64>();
+    for i in 0..vec.len() {
+        if replica_token <= ((i + 2) as f64).log(log_base) {
+            return i;
+        }
+    }
+
+    return vec.len() - 1;
+}
+
+fn to_datanode_id_proto(datanode: &Datanode) -> DatanodeIdProto {
+    // initialize DatanodeIdProto
+    let mut di_proto = DatanodeIdProto::default();
+    di_proto.ip_addr = datanode.ip_address.clone();
+    di_proto.datanode_uuid = datanode.id.clone();
+    di_proto.xfer_port = datanode.xfer_port;
+
+    di_proto
+}
+
 fn to_datanode_info_proto(datanode: &Datanode,
         storage_store: Option<&StorageStore>) -> DatanodeInfoProto {
     let mut last_update = 0;
 
-    // iniitalize DatanodeInfoProto
+    // initialize DatanodeInfoProto
     let mut din_proto = DatanodeInfoProto::default();
     din_proto.admin_state = Some(0); // NORMAL
     din_proto.location = Some("/default-rack".to_string());

@@ -1,15 +1,18 @@
 use prefix_query::{self, PrefixExpression, PrefixOperation};
 use query::{self, BinaryExpression, CompareExpression, CompareOp, ConstantExpression, EvaluateExpression};
+use radix::RadixTrie;
 use regex::Regex;
 use shared::{self, NahFSError};
 
 use std::collections::{BTreeMap, HashMap};
+use std::collections::hash_map::Iter;
 
 pub type TemporalQuery = query::BooleanExpression<u64>;
 pub type SpatialQuery = prefix_query::BooleanExpression;
 
 pub struct Index {
     spatial_map: HashMap<u64, Vec<(String, u32)>>,
+    spatial_trie: RadixTrie<Vec<(u64, usize)>>,
     temporal_map: HashMap<u64, (u64, u64)>,
 }
 
@@ -17,11 +20,12 @@ impl Index {
     pub fn new() -> Index {
         Index {
             spatial_map: HashMap::new(),
+            spatial_trie: RadixTrie::new(),
             temporal_map: HashMap::new(),
         }
     }
 
-    pub fn add_spatial_index(&mut self, block_id: u64, geohash: &str,
+    pub fn update_spatial(&mut self, block_id: u64, geohash: &str,
             length: u32) -> Result<(), NahFSError> {
         // add block entry in spatial map 
         let geohashes = self.spatial_map.entry(block_id)
@@ -34,15 +38,24 @@ impl Index {
             }
         }
 
-        // insert geohash index
+        // insert metadata into spatial map
         geohashes.push((geohash.to_string(), length));
+
+        // insert metadata into spatial trie
+        let geohash_bytes = geohash.as_bytes();
+        match self.spatial_trie.get_mut(&geohash_bytes) {
+            Some(blocks) => blocks.push((block_id, geohashes.len() - 1)),
+            None => self.spatial_trie.insert(&geohash_bytes,
+                vec!((block_id, geohashes.len() - 1)))?,
+        }
+
         trace!("addeed spatial index on block {} : {} - {} bytes",
             block_id, geohash, length);
 
         Ok(())
     }
 
-    pub fn add_temporal_index(&mut self, block_id: u64, 
+    pub fn update_temporal(&mut self, block_id: u64, 
             start_timestamp: u64, end_timestamp: u64)
             -> Result<(), NahFSError> {
         // check if block already exists
@@ -56,14 +69,30 @@ impl Index {
         Ok(())
     }
 
-    pub fn get_spatial_index(&self)
-            -> &HashMap<u64, Vec<(String, u32)>> {
-        &self.spatial_map
+    pub fn spatial_iter(&self) -> Iter<u64, Vec<(String, u32)>> {
+        self.spatial_map.iter()
     }
 
-    pub fn get_temporal_index(&self)
-            -> &HashMap<u64, (u64, u64)> {
-        &self.temporal_map
+    pub fn temporal_iter(&self) -> Iter<u64, (u64, u64)> {
+        self.temporal_map.iter()
+    }
+
+    pub fn spatial_blocks_query(&self, geohash: &str) -> Vec<(u64, u32)> {
+        let mut blocks = Vec::new();
+        
+        // query radix trie for specified geohash
+        let geohash_bytes = geohash.as_bytes();
+        if let Some(geohash_blocks) =
+                self.spatial_trie.get(geohash_bytes) {
+            // iterate over blocks - added size to return vector
+            for (block_id, index) in geohash_blocks {
+                let size = self.spatial_map
+                    .get(block_id).unwrap()[*index].1;
+                blocks.push((*block_id, size));
+            }
+        }
+
+        blocks
     }
 
     // returns
@@ -125,7 +154,7 @@ pub fn parse_query(query_string: &str) -> Result<(Option<SpatialQuery>,
 
     // parse query expressions
     let mut spatial_expressions = Vec::new();
-    let mut temporal_expressions: Vec<Box<BinaryExpression<u64>>>
+    let mut temporal_expressions: Vec<Box<dyn BinaryExpression<u64>>>
         = Vec::new();
 
     let expr_regex = Regex::new(r"(\w+)(=|!=|<|<=|>|>=)(\w+)")?;

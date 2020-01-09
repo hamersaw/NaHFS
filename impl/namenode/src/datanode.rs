@@ -60,7 +60,12 @@ impl DatanodeStore {
         self.map.get(id)
     }
 
-    pub fn get_random_ids(&self, count: u32) -> Vec<&String> {
+    pub fn get_datanodes(&self) -> Vec<&Datanode> {
+        self.map.values().collect()
+    }
+
+    // TODO - function no longer used
+    /*pub fn get_random_ids(&self, count: u32) -> Vec<&String> {
         let mut ids = Vec::new();
         'a: while (ids.len() as u32) < count
                 && ids.len() != self.map.len() {
@@ -80,7 +85,7 @@ impl DatanodeStore {
         }
 
         ids
-    }
+    }*/
 
     pub fn update(&mut self, id: &str, cache_capacity: Option<u64>,
             cache_used: Option<u64>, update_timestamp: u64,
