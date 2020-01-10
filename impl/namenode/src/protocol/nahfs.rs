@@ -40,9 +40,6 @@ impl NahFSProtocol {
         let mut response = GetIndexReplicasResponseProto::default();
 
         debug!("getIndexReplicas({:?})", request);
-        // TODO - need to find number of replicas for each file
-        //  FileStore.get_replicaction(block_id: &u64)
-        //  ? - store replication in Block at BlockStore - simple block lookup
 
         // retrieve block spatial attributes
         let geohashes = match request.block_index.spatial_index {
@@ -74,8 +71,8 @@ impl NahFSProtocol {
         }
 
         // choose subsequent replicas based on storage usage
-        // TODO - configure replication size
-        while response.datanode_id_protos.len() < 2 {
+        while response.datanode_id_protos.len()
+                < request.replication as usize {
            let index = super::select_block_replica(&datanodes);    
            let datanode = datanode_store
                .get_datanode(&datanodes[index].0).unwrap();

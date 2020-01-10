@@ -30,7 +30,8 @@ message SpatialIndexProto {
  */
 message getIndexReplicasRequestProto {
     required string datanodeId = 1;
-    required BlockIndexProto blockIndex = 2;
+    required uint32 replication = 2;
+    required BlockIndexProto blockIndex = 3;
 }
 
 message getIndexReplicasResponseProto {

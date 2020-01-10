@@ -139,11 +139,17 @@ fn transfer_block(data: &Vec<u8>, replicas: &Vec<DatanodeIdProto>,
 }
 
 fn transfer_indexed_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
-        datanode_id: &str, namenode_ip_address: &str, namenode_port: u16)
-        -> Result<(), NahFSError> {
+        datanode_id: &str, replication: u32, namenode_ip_address: &str,
+        namenode_port: u16) -> Result<(), NahFSError> {
+    // if no replicas -> transfer is successful
+    if replication == 0 {
+        return Ok(());
+    }
+
     // initialize GetIndexReplicasRequestProto
     let mut req_proto = GetIndexReplicasRequestProto::default();
     req_proto.datanode_id = datanode_id.to_string();
+    req_proto.replication = replication;
     match &bm_proto.index {
         Some(index) => req_proto.block_index = index.clone(),
         None => return Err(NahFSError::from("unable to transfer_indexed_block with 'None' index")),
@@ -156,7 +162,7 @@ fn transfer_indexed_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
     let mut client = Client::new(&namenode_ip_address, namenode_port)?;
     let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "getIndexReplicas", req_proto)?;
 
-    // read respnose
+    // read response
     let resp_proto = GetIndexReplicasResponseProto
         ::decode_length_delimited(resp_buf)?;
 

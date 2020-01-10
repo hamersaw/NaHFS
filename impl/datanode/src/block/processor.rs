@@ -164,6 +164,7 @@ fn process_loop(index_store: Arc<RwLock<IndexStore>>,
                     (Operation::TRANSFER, Some(_)) =>
                         super::transfer_indexed_block(&block_op.data,
                             &block_op.bm_proto, &datanode_id,
+                            block_op.replicas.len() as u32,
                             &namenode_ip_address, namenode_port),
                 };
 
