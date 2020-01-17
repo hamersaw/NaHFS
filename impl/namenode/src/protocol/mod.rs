@@ -57,16 +57,11 @@ fn get_spatiotemporal_datanode_usage(block_store: &BlockStore,
     for geohash in geohashes.iter() {
         for (block_id, size) in index.spatial_blocks_query(geohash) {
             // update datanodes for each block replica
-            let block_result = block_store.get_block(&block_id);
-            if let None = block_result {
-                debug!("querying for block {} before it's been reported", block_id);
-                continue; // TODO - log?
-            }
-
-            let block = block_result.unwrap();
-            for datanode_id in block.locations.iter() {
-                let byte_count = map.get_mut(datanode_id).unwrap();
-                *byte_count += size as u64;
+            if let Some(block) = block_store.get_block(&block_id) {
+                for datanode_id in block.locations.iter() {
+                    let byte_count = map.get_mut(datanode_id).unwrap();
+                    *byte_count += size as u64;
+                }
             }
         }
     }

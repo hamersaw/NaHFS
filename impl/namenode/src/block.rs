@@ -20,7 +20,7 @@ impl BlockStore {
     }
 
     pub fn get_block(&self, id: &u64) -> Option<&Block> {
-        Some(self.map.get(id).unwrap())
+        self.map.get(id)
     }
 
     pub fn update(&mut self, id: u64, generation_stamp: u64,
