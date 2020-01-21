@@ -3,6 +3,7 @@ use communication::StreamHandler;
 use hdfs_comm::block::{BlockInputStream, BlockOutputStream};
 use hdfs_protos::hadoop::hdfs::{BlockOpResponseProto, ChecksumProto, OpReadBlockProto, OpWriteBlockProto, ReadOpChecksumInfoProto, Status};
 use prost::Message;
+use shared::NahFSError;
 use shared::protos::BlockMetadataProto;
 
 use crate::block::BlockProcessor;
@@ -144,21 +145,9 @@ impl StreamHandler for TransferStreamHandler {
                     let processor = self.processor.read().unwrap();
                     let mut buf = vec![0u8; len as usize];
 
-                    let read_result = if block_id & FIRST_BIT_U64
-                            == FIRST_BIT_U64 {
-                        // if indexed -> decode block id
-                        let (decoded_id, geohashes) =
-                            shared::block::decode_block_id(&block_id);
-
-                        processor.read_indexed(decoded_id,
-                            &geohashes, offset, &mut buf)
-                    } else {
-                        processor.read(block_id, offset, &mut buf)
-                    };
-
-                    if let Err(e) = read_result {
-                        warn!("processor read block {}: {}",
-                            block_id, e);
+                    if let Err(e) = read_block(block_id, offset,
+                            &mut buf, &processor) {
+                        warn!("processor read block {}: {}", block_id, e);
                     }
  
                     // send block
@@ -202,8 +191,50 @@ impl StreamHandler for TransferStreamHandler {
                             block_id, e);
                     }
                 },
+                83 => {
+                    // parse block metadata
+                    let block_id = stream.read_u64::<BigEndian>()?;
+                    let offset = stream.read_u64::<BigEndian>()?;
+                    let len = stream.read_u64::<BigEndian>()?;
+
+                    debug!("ReadBlockDirect: {{ block_id:{}, offset:{}, length:{} }}",
+                        block_id, offset, length);
+
+                    // read block from file
+                    let read_start = SystemTime::now();
+                    let processor = self.processor.read().unwrap();
+                    let mut buf = vec![0u8; len as usize];
+
+                    if let Err(e) = read_block(block_id,
+                            offset, &mut buf, &processor) {
+                        warn!("processor read block {}: {}", block_id, e);
+                    }
+ 
+                    // send block
+                    stream.write_all(&buf)?;
+                    let _ = stream.read_u8()?;
+
+                    let read_duration =
+                        SystemTime::now().duration_since(read_start);
+                    debug!("read block {} with length {} in {:?}",
+                        block_id, buf.len(), read_duration);
+                },
                 _ => unimplemented!(),
             }
         }
+    }
+}
+
+fn read_block(block_id: u64, offset: u64, buf: &mut Vec<u8>,
+        processor: &BlockProcessor) -> Result<(), NahFSError> {
+    if block_id & FIRST_BIT_U64 == FIRST_BIT_U64 {
+        // if indexed -> decode block id
+        let (decoded_id, geohashes) =
+            shared::block::decode_block_id(&block_id);
+
+        processor.read_indexed(decoded_id,
+            &geohashes, offset, buf)
+    } else {
+        processor.read(block_id, offset, buf)
     }
 }
