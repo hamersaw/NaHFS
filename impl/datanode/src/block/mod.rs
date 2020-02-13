@@ -64,12 +64,16 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
                     let end_index = si_proto.end_indices[i] as u64;
 
                     while start_index < end_index {
-                        let index_length = end_index - start_index;
+                        // read length is minimum of index 
+                        // length and remaining buffer
+                        let read_length = std::cmp::min(
+                            end_index - start_index,
+                            (buf.len() - buf_index) as u64);
 
                         if remaining_offset > 0 {
                             // skip byte_count bytes for block offset
                             let byte_count = std::cmp
-                                ::min(remaining_offset, index_length);
+                                ::min(remaining_offset, read_length);
 
                             start_index += byte_count;
                             remaining_offset -= byte_count;
@@ -77,10 +81,15 @@ fn read_indexed_block(block_id: u64, geohashes: &Vec<u8>, offset: u64,
                             // read index_length bytes into buf
                             file.seek(SeekFrom::Start(start_index))?;
                             file.read_exact(&mut buf[buf_index..
-                                buf_index + (index_length as usize)])?;
+                                buf_index + (read_length as usize)])?;
 
-                            buf_index += index_length as usize;
-                            start_index += index_length;
+                            buf_index += read_length as usize;
+                            start_index += read_length;
+                        }
+
+                        // check if buffer is full
+                        if buf_index == buf.len() {
+                            break;
                         }
                     }
                 }
