@@ -28,14 +28,14 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start namenode
-        RUST_LOG=debug $NAMENODE ${ARRAY[4]} \
+        RUST_LOG=debug RUST_BACKTRACE=1 $NAMENODE ${ARRAY[4]} \
             -i ${ARRAY[2]} -p ${ARRAY[3]} \
                 > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 &
 
         echo $! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid
     else
         # start remote namenode
-        ssh rammerd@${ARRAY[2]} -n "RUST_LOG=debug $NAMENODE \
+        ssh rammerd@${ARRAY[2]} -n "RUST_LOG=info $NAMENODE \
             ${ARRAY[4]} -i ${ARRAY[2]} -p ${ARRAY[3]} \
                 > $PROJECT_DIR/log/namenode-${ARRAY[1]}.log 2>&1 & \
             echo \$! > $PROJECT_DIR/log/namenode-${ARRAY[1]}.pid"
@@ -56,7 +56,7 @@ while read LINE; do
     if [ ${ARRAY[2]} == "127.0.0.1" ]
     then
         # start datanode
-        RUST_LOG=debug $DATANODE ${ARRAY[1]} ${ARRAY[1]} \
+        RUST_LOG=debug RUST_BACKTRACE=1 $DATANODE ${ARRAY[1]} ${ARRAY[1]} \
             ${ARRAY[4]} -i ${ARRAY[2]} -p ${ARRAY[3]}  \
             -a $NAMENODE_IP -o $NAMENODE_PORT \
                 > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 &
@@ -64,7 +64,7 @@ while read LINE; do
         echo $! > $PROJECT_DIR/log/datanode-${ARRAY[1]}.pid
     else
         # start remote datanode
-        ssh rammerd@${ARRAY[2]} -n "RUST_LOG=debug $DATANODE \
+        ssh rammerd@${ARRAY[2]} -n "RUST_LOG=info $DATANODE \
             ${ARRAY[1]} ${ARRAY[1]} ${ARRAY[4]} -i ${ARRAY[2]} \
             -p ${ARRAY[3]} -a $NAMENODE_IP -o $NAMENODE_PORT \
                 > $PROJECT_DIR/log/datanode-${ARRAY[1]}.log 2>&1 & \

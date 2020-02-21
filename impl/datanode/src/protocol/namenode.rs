@@ -273,7 +273,7 @@ fn index_report(config: &Config, index_timestamp: u64)
 
     // write IndexReportRequestProto 
     let mut client = Client::new(&config.namenode_ip_address, config.namenode_port)?;
-    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "indexReport", irr_proto)?;
+    let (_, resp_buf) = client.write_message("io.blackpine.nahfs.protocol.NahFSProtocol", "indexReport", irr_proto)?;
 
     // read response
     let _ = IndexReportResponseProto

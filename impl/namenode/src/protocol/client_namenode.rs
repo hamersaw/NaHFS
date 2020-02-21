@@ -209,7 +209,6 @@ impl ClientNamenodeProtocol {
         let mut response = GetListingResponseProto::default();
 
         // get listing
-        // TODO - handle need_location
         debug!("getListing({:?})", request);
         let (path, query) =
             parse_embedded_query_path(&request.src).unwrap();

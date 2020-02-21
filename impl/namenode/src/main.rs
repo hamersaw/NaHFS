@@ -109,7 +109,7 @@ fn main() {
     let nahfs_protocol = NahFSProtocol::new(block_store.clone(),
         datanode_store.clone(), file_store.clone(),
         index.clone(), &config.persist_path);
-    protocols.register("com.bushpath.nahfs.protocol.NahFSProtocol",
+    protocols.register("io.blackpine.nahfs.protocol.NahFSProtocol",
         Box::new(nahfs_protocol));
  
     // start server
