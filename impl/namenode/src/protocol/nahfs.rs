@@ -1,7 +1,7 @@
 use hdfs_comm::rpc::Protocol;
 use prost::Message;
 use shared::NahFSError;
-use shared::protos::{BlockIndexProto, GetIndexReplicasRequestProto, GetIndexReplicasResponseProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
+use shared::protos::{BlockFilterRequestProto, BlockFilterResponseProto, BlockIndexProto, GetIndexReplicasRequestProto, GetIndexReplicasResponseProto, GetStoragePolicyResponseProto, GetStoragePolicyRequestProto, IndexReportResponseProto, IndexReportRequestProto, IndexViewResponseProto, IndexViewRequestProto, InodePersistResponseProto, InodePersistRequestProto, SpatialIndexProto, TemporalIndexProto};
 
 use crate::{BlockStore, DatanodeStore};
 use crate::file::FileStore;
@@ -31,6 +31,37 @@ impl NahFSProtocol {
             index: index,
             persist_path: persist_path.to_string(),
         }
+    }
+
+    fn filter_blocks(&self, req_buf: &[u8],
+            resp_buf: &mut Vec<u8>) -> Result<(), NahFSError> {
+        let request = BlockFilterRequestProto
+            ::decode_length_delimited(req_buf)?;
+        let mut response = BlockFilterResponseProto::default();
+        let block_ids = &mut response.block_ids;
+        let block_lengths = &mut response.block_lengths;
+
+        debug!("filterBlocks({:?})", request);
+
+        // parse query filter
+        let query = crate::index::parse_query(&request.filter)?;
+
+        // query blocks
+        let block_store = self.block_store.read().unwrap();
+        let index = self.index.read().unwrap();
+        for (block_id, query_result) in crate::protocol::query_blocks(
+                &request.block_ids, &index, &Some(("", query))) {
+            if let Some(block) = block_store.get_block(&block_id) {
+                block_ids.push(block_id);
+                match query_result {
+                    Some((_, length)) => block_lengths.push(length as u64),
+                    None => block_lengths.push(block.length),
+                }
+            }
+        }
+
+        response.encode_length_delimited(resp_buf)?;
+        Ok(())
     }
 
     fn get_index_replicas(&self, req_buf: &[u8],
@@ -208,6 +239,7 @@ impl Protocol for NahFSProtocol {
     fn process(&self, _user: &Option<String>, method: &str,
             req_buf: &[u8], resp_buf: &mut Vec<u8>) -> std::io::Result<()> {
         match method {
+            "filterBlocks" => self.filter_blocks(req_buf, resp_buf)?,
             "getIndexReplicas" =>
                 self.get_index_replicas(req_buf, resp_buf)?,
             "getStoragePolicy" =>

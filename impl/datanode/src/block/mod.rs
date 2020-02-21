@@ -169,7 +169,7 @@ fn transfer_indexed_block(data: &Vec<u8>, bm_proto: &BlockMetadataProto,
 
     // send GetIndexReplicasRequestProto
     let mut client = Client::new(&namenode_ip_address, namenode_port)?;
-    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "getIndexReplicas", req_proto)?;
+    let (_, resp_buf) = client.write_message("io.blackpine.nahfs.protocol.NahFSProtocol", "getIndexReplicas", req_proto)?;
 
     // read response
     let resp_proto = GetIndexReplicasResponseProto

@@ -69,3 +69,13 @@ message InodePersistRequestProto {
 
 message InodePersistResponseProto {
 }
+
+message BlockFilterRequestProto {
+    required string filter = 1; 
+    repeated uint64 blockIds = 2;
+}
+
+message BlockFilterResponseProto {
+    repeated uint64 blockIds = 1;
+    repeated uint64 blockLengths = 2;
+}

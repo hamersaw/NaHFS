@@ -26,7 +26,7 @@ fn view(matches: &ArgMatches, _inode_matches: &ArgMatches,
     let ip_address = matches.value_of("ip_address").unwrap();
     let port = matches.value_of("port").unwrap().parse::<u16>()?;
     let mut client = Client::new(ip_address, port)?;
-    let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "indexView", req_proto)?;
+    let (_, resp_buf) = client.write_message("io.blackpine.nahfs.protocol.NahFSProtocol", "indexView", req_proto)?;
 
     // read respnose
     let resp_proto = IndexViewResponseProto

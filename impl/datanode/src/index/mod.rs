@@ -58,7 +58,7 @@ impl IndexStore {
 
         // send GetStoragePolicyRequestProto
         let mut client = Client::new(&self.ip_address, self.port)?;
-        let (_, resp_buf) = client.write_message("com.bushpath.nahfs.protocol.NahFSProtocol", "getStoragePolicy", req)?;
+        let (_, resp_buf) = client.write_message("io.blackpine.nahfs.protocol.NahFSProtocol", "getStoragePolicy", req)?;
 
         // read response
         let resp = GetStoragePolicyResponseProto
