@@ -7,6 +7,9 @@ NahFS (Needle and Hand File System) is a distributed, spatio-temporal file syste
 - Wkt(spatial_index:x)
 
 ## COMMANDS
+#### start / stop cluster
+    ./sbin/start-all.sh
+    ./sbin/stop-all.sh
 #### create 'indexed' directory
     ./bin/hdfs dfs -mkdir -p /noaa-1-hour/csv/2013
     ./bin/hdfs storagepolicies -setStoragePolicy -path /noaa-1-hour/csv -policy "CsvPoint(timestamp_index:3,latitude_index:0,longitude_index:1)"
@@ -14,9 +17,9 @@ NahFS (Needle and Hand File System) is a distributed, spatio-temporal file syste
     ./bin/hdfs dfs -mkdir -p /noaa-1-hour/csv-mod/2013
     ./bin/hdfs storagepolicies -setStoragePolicy -path /noaa-1-hour/csv-mod -policy "CsvPoint(timestamp_index:2,latitude_index:1,longitude_index:0)"
 #### upload files
-    ./bin/hdfs dfs -copyFromLocal ~/Downloads/noaa-1-hour/csv/2013/d7m_2013_DECEMBER.csv /noaa-15-minute/csv/2013
+    ./bin/hdfs dfs -copyFromLocal ~/Downloads/noaa-1-hour/csv/2013/d7m_2013_DECEMBER.csv /noaa-1-hour/csv/2013
 
-    ./bin/hdfs dfs -copyFromLocal ~/Downloads/noaa-1-hour/csv-mod/2013/d7m_2013_DECEMBER.csv /noaa-15-minute/csv-mod/2013
+    ./bin/hdfs dfs -copyFromLocal ~/Downloads/noaa-1-hour/csv-mod/2013/d7m_2013_DECEMBER.csv /noaa-1-hour/csv-mod/2013
 #### download files (with spatiotemporal filter)
     ./bin/hdfs dfs -copyToLocal "/noaa-1-hour/csv/2013/d7m_2013_DECEMBER.csv+g=92d9&t>123" .
 
