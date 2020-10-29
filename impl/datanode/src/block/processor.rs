@@ -1,5 +1,5 @@
 use crossbeam_channel::{self, Receiver, Sender, SendError};
-use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
+use hdfs_comm::protos::hdfs::DatanodeIdProto;
 use shared::NahFSError;
 use shared::protos::BlockMetadataProto;
 

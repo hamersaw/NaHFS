@@ -1,4 +1,4 @@
-use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
+use hdfs_comm::protos::hdfs::{DatanodeIdProto, DatanodeInfoProto, HdfsFileStatusProto, LocatedBlockProto, LocatedBlocksProto};
 
 use crate::block::BlockStore;
 use crate::datanode::{Datanode, DatanodeStore};

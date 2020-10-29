@@ -1,7 +1,7 @@
 use crossbeam_channel::{self, Receiver, Sender};
 use hdfs_comm::rpc::Client;
-use hdfs_protos::hadoop::hdfs::StorageReportProto;
-use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
+use hdfs_comm::protos::hdfs::StorageReportProto;
+use hdfs_comm::protos::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeRequestProto, RegisterDatanodeResponseProto, StorageBlockReportProto};
 use prost::Message;
 use shared::NahFSError;
 use shared::protos::{BlockMetadataProto, IndexReportResponseProto, IndexReportRequestProto};

@@ -4,8 +4,8 @@ mod transfer;
 pub use namenode::NamenodeProtocol;
 pub use transfer::TransferStreamHandler;
 
-use hdfs_protos::hadoop::hdfs::{DatanodeIdProto, DatanodeStorageProto, ExportedBlockKeysProto, StorageInfoProto};
-use hdfs_protos::hadoop::hdfs::datanode::DatanodeRegistrationProto;
+use hdfs_comm::protos::hdfs::{DatanodeIdProto, DatanodeStorageProto, ExportedBlockKeysProto, StorageInfoProto};
+use hdfs_comm::protos::hdfs::datanode::DatanodeRegistrationProto;
 
 use crate::Config;
 

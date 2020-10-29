@@ -1,5 +1,5 @@
 use hdfs_comm::rpc::Protocol;
-use hdfs_protos::hadoop::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeResponseProto, RegisterDatanodeRequestProto};
+use hdfs_comm::protos::hdfs::datanode::{BlockReportResponseProto, BlockReportRequestProto, HeartbeatResponseProto, HeartbeatRequestProto, RegisterDatanodeResponseProto, RegisterDatanodeRequestProto};
 use prost::Message;
 use shared::NahFSError;
 

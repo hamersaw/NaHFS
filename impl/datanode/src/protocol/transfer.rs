@@ -1,13 +1,14 @@
 use byteorder::{BigEndian, ReadBytesExt};
-use communication::StreamHandler;
+use comm::StreamHandler;
 use hdfs_comm::block::{BlockInputStream, BlockOutputStream};
-use hdfs_protos::hadoop::hdfs::{BlockOpResponseProto, ChecksumProto, OpReadBlockProto, OpWriteBlockProto, ReadOpChecksumInfoProto, Status};
+use hdfs_comm::protos::hdfs::{BlockOpResponseProto, ChecksumProto, OpReadBlockProto, OpWriteBlockProto, ReadOpChecksumInfoProto, Status};
 use prost::Message;
 use shared::NahFSError;
 use shared::protos::BlockMetadataProto;
 
 use crate::block::BlockProcessor;
 
+use std::error::Error;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::RwLock;
@@ -32,14 +33,14 @@ impl TransferStreamHandler {
 }
 
 impl StreamHandler for TransferStreamHandler {
-    fn process(&self, stream: &mut TcpStream) -> std::io::Result<()> {
+    fn process(&self, stream: &mut TcpStream)
+            -> Result<(), Box<dyn Error>> {
         loop {
             // read op
             let version = stream.read_u16::<BigEndian>()?;
             if version != PROTOCOL_VERSION {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "Unsupported protocol version"));
+                return Err(format!("Unsupported protocol version '{}'",
+                    version).into());
             }
 
             let op_type = stream.read_u8()?;

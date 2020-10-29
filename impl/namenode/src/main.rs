@@ -2,7 +2,7 @@
 extern crate log;
 extern crate structopt;
 
-use communication::Server;
+use comm::Server;
 use hdfs_comm::rpc::Protocols;
 use shared::NahFSError;
 use structopt::StructOpt;
@@ -12,6 +12,7 @@ mod datanode;
 mod file;
 mod index;
 mod protocol;
+mod query;
 mod storage;
 
 use block::BlockStore;
@@ -88,10 +89,6 @@ fn main() {
 
     let listener = listener_result.unwrap();
 
-    // initialize Server
-    let mut server = Server::new(listener, config.socket_wait_ms);
-    info!("initialized rpc server");
-
     // register protocols
     let mut protocols = Protocols::new();
 
@@ -111,10 +108,14 @@ fn main() {
         index.clone(), &config.persist_path);
     protocols.register("io.blackpine.nahfs.protocol.NahFSProtocol",
         Box::new(nahfs_protocol));
+
+    // initialize Server
+    let handler = Arc::new(protocols);
+    let mut server = Server::new(listener, config.socket_wait_ms, handler);
+    info!("initialized rpc server");
  
     // start server
-    if let Err(e) = server.start_threadpool(config.thread_count,
-            Arc::new(RwLock::new(Box::new(protocols)))) {
+    if let Err(e) = server.start_threadpool(config.thread_count) {
         error!("failed to start rpc server: {}", e);
     }
     info!("started rpc server");

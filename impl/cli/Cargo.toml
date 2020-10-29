@@ -1,11 +1,11 @@
 [package]
 name = "cli"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Daniel Rammer <hamersaw@bushpath.com>"]
 edition = "2018"
 
 [dependencies]
 clap = {version = "2.33", features = ["yaml"]}
-hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
+hdfs-comm = { path = "../../../hdfs-comm-rs" }
 prost = "0.5"
 shared = { path = "../shared" }

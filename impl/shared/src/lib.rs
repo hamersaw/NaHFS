@@ -3,6 +3,7 @@ use prost::{EncodeError, DecodeError};
 use radix::RadixError;
 
 use std::fmt::{Display, Formatter};
+use std::error::Error;
 use std::num::{ParseFloatError, ParseIntError};
 
 pub mod block;
@@ -29,6 +30,7 @@ impl From<NahFSError> for std::io::Error {
 #[derive(Debug)]
 pub enum NahFSError {
     BincodeError(Box<bincode::ErrorKind>),
+    BoxError(Box<dyn Error>),
     DecodeError(DecodeError),
     EncodeError(EncodeError),
     GlobError(GlobError),
@@ -45,6 +47,7 @@ impl Display for NahFSError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match *self {
             NahFSError::BincodeError(ref err) => write!(f, "BincodeError: {:?}", err),
+            NahFSError::BoxError(ref err) => write!(f, "BoxError: {:?}", err),
             NahFSError::DecodeError(ref err) => write!(f, "DecodeError: {:?}", err),
             NahFSError::EncodeError(ref err) => write!(f, "EncodeError: {:?}", err),
             NahFSError::GlobError(ref err) => write!(f, "GlobError: {:?}", err),
@@ -62,6 +65,12 @@ impl Display for NahFSError {
 impl From<Box<bincode::ErrorKind>> for NahFSError {
     fn from(err: Box<bincode::ErrorKind>) -> NahFSError {
         NahFSError::BincodeError(err)
+    }
+}
+
+impl From<Box<dyn Error>> for NahFSError {
+    fn from(err: Box<dyn Error>) -> NahFSError {
+        NahFSError::BoxError(err)
     }
 }
 

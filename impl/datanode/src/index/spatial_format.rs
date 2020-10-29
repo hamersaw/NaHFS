@@ -1,3 +1,5 @@
+use geocode::Geocode;
+
 use shared::NahFSError;
 
 use crate::index::data_format::get_delimited_field;
@@ -18,7 +20,8 @@ impl SpatialFormat {
                 let longitude = get_delimited_field(*longitude_index,
                     data, delimiters)?.parse::<f32>()?;
 
-                Ok(Some(geohash::encode_16(latitude, longitude, 8)?))
+                Ok(Some(Geocode::Geohash16
+                    .encode(latitude as f64, longitude as f64, 8)?))
             },
             SpatialFormat::Wkt {spatial_index} => {
                 // retrieve wkt spatial fields
@@ -69,10 +72,14 @@ impl SpatialFormat {
                 }
 
                 // calculate match length for boundary geohashes
-                let a = geohash::encode_16(min_lat, min_long, 8)?;
-                let b = geohash::encode_16(max_lat, min_long, 8)?;
-                let c = geohash::encode_16(min_lat, max_long, 8)?;
-                let d = geohash::encode_16(max_lat, max_long, 8)?;
+                let a = Geocode::Geohash16.encode(
+                    min_lat as f64, min_long as f64, 8)?;
+                let b = Geocode::Geohash16.encode(
+                    max_lat as f64, min_long as f64, 8)?;
+                let c = Geocode::Geohash16.encode(
+                    min_lat as f64, max_long as f64, 8)?;
+                let d = Geocode::Geohash16.encode(
+                    max_lat as f64, max_long as f64, 8)?;
 
                 let mut match_length = 0;
                 for i in 1..a.len() {

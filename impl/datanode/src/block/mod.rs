@@ -1,6 +1,6 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use hdfs_comm::rpc::Client;
-use hdfs_protos::hadoop::hdfs::DatanodeIdProto;
+use hdfs_comm::protos::hdfs::DatanodeIdProto;
 use prost::Message;
 use shared::{self, NahFSError};
 use shared::protos::{BlockMetadataProto, GetIndexReplicasRequestProto, GetIndexReplicasResponseProto};

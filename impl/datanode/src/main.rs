@@ -4,7 +4,7 @@ extern crate crossbeam_channel;
 extern crate log;
 extern crate structopt;
 
-use communication::Server;
+use comm::Server;
 use structopt::StructOpt;
 
 mod block;
@@ -62,13 +62,14 @@ fn main() {
     let listener = listener_result.unwrap();
 
     // initialize Server
-    let mut server = Server::new(listener, config.socket_wait_ms);
+    let handler =
+        Arc::new(TransferStreamHandler::new(RwLock::new(processor)));
+    let mut server = Server::new(listener,
+        config.socket_wait_ms, handler);
     info!("initialized transfer server");
 
     // start server
-    let handler = TransferStreamHandler::new(RwLock::new(processor));
-    if let Err(e) =
-            server.start(Arc::new(RwLock::new(Box::new(handler)))) {
+    if let Err(e) = server.start() {
         error!("failed to start transfer server: {}", e);
         return;
     }

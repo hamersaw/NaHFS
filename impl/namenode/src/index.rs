@@ -1,14 +1,15 @@
-use prefix_query::{self, PrefixExpression, PrefixOperation};
-use query::{self, BinaryExpression, CompareExpression, CompareOp, ConstantExpression, EvaluateExpression};
 use radix::RadixTrie;
 use regex::Regex;
 use shared::{self, NahFSError};
+
+use crate::query::{self, BinaryExpression, CompareExpression, CompareOp, ConstantExpression, EvaluateExpression};
+use crate::query::prefix::{PrefixExpression, PrefixOperation};
 
 use std::collections::{BTreeMap, HashMap};
 use std::collections::hash_map::Iter;
 
 pub type TemporalQuery = query::BooleanExpression<u64>;
-pub type SpatialQuery = prefix_query::BooleanExpression;
+pub type SpatialQuery = query::prefix::BooleanExpression;
 
 pub struct Index {
     spatial_map: HashMap<u64, Vec<(String, u32)>>,
@@ -203,8 +204,8 @@ pub fn parse_query(query_string: &str) -> Result<(Option<SpatialQuery>,
     // return spatial and temporal queries
     let spatial_query = match spatial_expressions.len() {
         0 => None,
-        _ => Some(prefix_query::BooleanExpression::new(
-            spatial_expressions, prefix_query::BooleanOperation::And)),
+        _ => Some(query::prefix::BooleanExpression::new(
+            spatial_expressions, query::prefix::BooleanOperation::And)),
     };
 
     let temporal_query = match temporal_expressions.len() {

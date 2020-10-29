@@ -1,21 +1,18 @@
 [package]
 name = "namenode"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Daniel Rammer <hamersaw@bushpath.com>"]
 edition = "2018"
 
 [dependencies]
 bincode = "1.1"
 bytes = "0.4"
-communication = {path = "../../../utilities-rs/communication" }
+comm = {path = "../../../comm-rs" }
 env_logger = "0.6"
-hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
-hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }
+hdfs-comm = { path = "../../../hdfs-comm-rs" }
 log = "0.4"
 prost = "0.5"
-query = { path = "../../../utilities-rs/query" }
-prefix-query = { path = "../../../utilities-rs/prefix-query" }
-radix = { path = "../../../utilities-rs/radix" }
+radix = { path = "../../../radix-rs" }
 rand = "0.6"
 regex = "1.1"
 serde = { version = "1.0", features = ["derive"] }

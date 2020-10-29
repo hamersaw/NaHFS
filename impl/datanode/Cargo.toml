@@ -1,18 +1,17 @@
 [package]
 name = "datanode"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Daniel Rammer <hamersaw@bushpath.com>"]
 edition = "2018"
 
 [dependencies]
 byteorder = "1"
-communication = {path = "../../../utilities-rs/communication" }
+comm = {path = "../../../comm-rs" }
 env_logger = "0.6"
 crossbeam-channel = "0.3"
-geohash = { path = "../../../utilities-rs/geohash" }
+geocode = { path = "../../../geocode-rs" }
 glob = "0.3"
-hdfs-comm = { path = "../../../utilities-rs/hdfs-comm" }
-hdfs-protos = { path = "../../../utilities-rs/hdfs-protos" }
+hdfs-comm = { path = "../../../hdfs-comm-rs" }
 log = "0.4"
 prost = "0.5"
 regex = "1.1"
